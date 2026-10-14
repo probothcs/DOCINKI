@@ -20,6 +20,8 @@ User (Polish, prefab clay-block wall builder) uploads a photo of the architect's
 - 2026-10: multi-wall batch (Dodaj ścianę on result, combined RAZEM summary, save all with project name); all cut pieces labelled in diagram (min scale + horizontal scroll); all cuts sourced from big block 50×24 (top-course cuts as len×14), only full top pieces are the low brick (tested iteration_3 all pass)
 - 2026-10: height planning per course-height table (module 24,4–25,1, brick 24 + mortar 1), top course from low bricks 9/14/19 (e.g. 266 = 10×25,1 + 1 + 14); notches/partial openings produce length×height cuts (e.g. 17×7 from brick 9); new settings: mortar, min/max course, top bricks; AI prompt reads corner notches (tested iteration_2 all pass)
 
+- 2026-10: unlimited walls per batch, tap cut type -> highlight on all diagrams + 'Gdzie' locations (per wall & RAZEM), saved wall -> 'Dodaj ścianę do projektu' reopens whole project (re-save replaces old records) (iteration_4 pass)
+
 ## Backlog
 - P1: PDF/share of the cut list, mark courses as done on site
 - P1: multiple walls per drawing sheet (front + returns)

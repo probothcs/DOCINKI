@@ -244,6 +244,24 @@ export function calculate(w: WallInput, settings: Settings): CalcResult {
   };
 }
 
+export const groupKey = (g: CutGroup) => `${g.len}|${g.h}|${g.from}`;
+export const pieceKey = (p: Piece) => `${p.cutLen}|${p.h}|${p.from}`;
+export const courseName = (c: Course) => (c.isTop ? "GÓRA" : `W${c.index}`);
+
+// where each cut type sits: group key -> list of courses
+export function cutLocations(r: CalcResult): Record<string, string[]> {
+  const m: Record<string, string[]> = {};
+  r.courses.forEach((c) =>
+    c.cuts.forEach((p) => {
+      const k = pieceKey(p);
+      const list = (m[k] ??= []);
+      const n = courseName(c);
+      if (!list.includes(n)) list.push(n);
+    }),
+  );
+  return m;
+}
+
 export function mergeGroups(results: CalcResult[]): CutGroup[] {
   const map = new Map<string, CutGroup>();
   results.forEach((r) =>

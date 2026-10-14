@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 4 verified the new multi-wall project features. Setup: cleaned DB via API (DELETE /api/walls/{id}) → 0 walls. (1) ✅ Added 4 walls via Nowa → manual-entry-button → 344×266 with openings (0,259,17,7),(327,259,17,7) → calculate; then add-wall-button → add-manual-button for 320×301, 438×266, 200×266 — draft-wall-0..3 all visible and project-total renders 'RAZEM: 4 ŚCIANY · 241 pełnych bloczków · 63 docinek · 17 cegieł na górę'. (2) ✅ Project-total CutGroups include aggregated locations: tapping total-cut-group-25 highlights row (brandPrimary bg) and text contains 'Gdzie: Ś1: W2, W4, W6, W8, W10 · Ś2: W2, W4, W6, W8, W10, W12 · Ś3: W2, W4, W6, W8, W10 · Ś4: W2, W4, W6, W8, W10' — 21× total; diagram-cut testIDs render for every wall (63 total pieces); tapping again un-selects. (3) ✅ Per-wall cut-group-25 row shows 'Gdzie: W2, W4, W6, W8, W10 × 5' and is tappable. (4) ✅ save-wall-button 'Zapisz wszystkie' with 4 walls → navigates to Historia → 4 history-item cards all with same project 'Projekt 14.10.2026 (4 ściany)' and expected dims. Backend GET /api/walls confirms 4 walls same project. (5) ✅ Opening a saved wall → saved-add-wall-button 'Dodaj ścianę do projektu' → router.replace('/result?add=1') with draft-wall-0..3 all visible AND add-manual-button already visible (add panel auto-opened). (6) ✅ Added 5th wall (150×266) → save → backend finally holds exactly 5 walls (old 4 replaced via Promise.all api.deleteWall of each draft.savedId). (7) ✅ recalculate-button (Edytuj) on single saved wall → edit length 150→151 → calculate → single save → navigates to /result?id={newId}, backend still 5 walls, 151×266 now present, 150×266 gone (old record replaced, no duplicate). One transient UI quirk observed in step 6 (see minor issues).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "saved-add-wall-button → add 5th → save-wall-button", "issue": "Immediately after the 5-wall batch save, the Historia FlatList briefly renders 10 cards (the new 5 walls duplicated) before React Query refetch settles to 5. Backend persistence is correct (5 walls, 4 old replaced), but the stale-cache + refetch overlap gives the user a flash of duplicates. Suggestion: await qc.invalidateQueries(…) (or qc.refetchQueries) BEFORE router.replace('/(tabs)/history'), or set queryClient defaultOptions.queries.refetchOnMount='always' for the walls query so stale data isn't shown during navigation.", "affected_testIDs": ["history-list", "save-wall-button", "history-item-*"]}
+    ],
+    "design_issues": [
+      {"screen": "result (multi-wall) + history", "issues": ["Project name is captured once from meta.project / first save (e.g. 'Projekt 14.10.2026 (4 ściany)') and keeps the old wall count after walls are added or removed via saved-add-wall-button. After adding a 5th wall and saving, every history-item still reads 'Projekt 14.10.2026 (4 ściany)' though there are now 5 walls. Consider regenerating the suffix on each save (or dropping the count from the project label)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix stale Historia render after multi-wall save: await invalidate/refetch of ['walls'] before router.replace('/(tabs)/history') in /app/frontend/app/result.tsx save().",
+    "Make the auto-generated project label reflect the current wall count on every save (currently frozen from the original batch meta.project)."
+  ],
+  "critical_code_review_comments": [
+    "result.tsx save(): deletes old savedId walls AFTER saving new ones (correct ordering, idempotent via .catch). Verified via backend: 4 old → 5 new leaves exactly 5 docs.",
+    "result.tsx openBatch(): correctly fetches all walls with same project via api.listWalls, maps to drafts with savedId, loadBatch() resets editIndex, pendingDeletes, batchProject. router.replace({add:'1'}) opens the add panel immediately (adding init = add === '1').",
+    "store.ts removeDraft(): pushes savedId to pendingDeletes before removing — so a wall removed inside a loaded batch is also deleted from DB on next save. Good.",
+    "ResultView.CutGroupsList uses groupKey as React key and testID '{prefix}{len}x{h}' or '{prefix}{len}' — matches spec total-cut-group-25 / cut-group-17x7.",
+    "WallDiagram selected highlight uses pieceKey which equals groupKey — tapping a group selects every piece from that group across all walls (verified visually)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (persistence verified via REST)", "frontend": "100% of requested flows (1 minor UX glitch + 1 cosmetic)"},
+  "seed_data_creation": "Pre-test cleanup: deleted leftover TEST_DEBUG wall via DELETE /api/walls. Created 5 project walls (150,200,320,344,438 then 151 after edit). Final DB state at report time: 5 walls under 'Projekt 14.10.2026 (4 ściany)'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Multi-wall save path (/app/frontend/app/result.tsx:78 save): POST each draft → DELETE savedIds + pendingDeletes → invalidateQueries(['walls']) → router.replace. Observed a 1-2s window where Historia shows 2x the walls because router.replace fires before refetch completes. If the main agent moves qc.invalidateQueries().then(() => router.replace(...)) or awaits refetchQueries, the flash disappears. The project-count label suffix is captured in /app/frontend/src/store.ts batchProject and reused as-is in subsequent saves — bump it on save if the wall count changed.",
+  "rca_of_issue": "Historia duplicate-flash: `qc.invalidateQueries` returns a promise but is not awaited in save() of result.tsx; `router.replace('/(tabs)/history')` fires synchronously, so HistoryScreen renders with the previous data snapshot (4 old walls) in cache while the refetch is in flight. When the new data arrives (5 new walls) React Query momentarily shows the keep-previous-data overlay — in practice the FlatList re-renders with the merged key set, producing 10 testIDs for a brief moment before stabilising at 5. Backend persistence (verified via curl) is always correct, so this is strictly a UX glitch. Fix: `await qc.refetchQueries({ queryKey: ['walls'] });` (or `invalidateQueries` + await) before `router.replace`."
+}

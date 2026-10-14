@@ -2,13 +2,13 @@ import { useState } from "react";
 import { LayoutChangeEvent, ScrollView, Text, View } from "react-native";
 
 import type { CalcResult, WallInput } from "../calc";
-import { cutLabel } from "../calc";
+import { cutLabel, pieceKey } from "../calc";
 import { fonts } from "../fonts";
 import { makeStyles } from "../theme";
 
 const MIN_SCALE = 1.6; // px per cm, so every cut label fits (scroll sideways on long walls)
 
-export function WallDiagram({ wall, result }: { wall: WallInput; result: CalcResult }) {
+export function WallDiagram({ wall, result, selected }: { wall: WallInput; result: CalcResult; selected?: string | null }) {
   const styles = useStyles();
   const [w, setW] = useState(0);
   const scale = Math.max(w / Math.max(wall.length, 1), MIN_SCALE);
@@ -36,10 +36,11 @@ export function WallDiagram({ wall, result }: { wall: WallInput; result: CalcRes
                         p.h !== null && c.isTop === false && { top: rowH * (1 - Math.min(1, p.h / c.brickHeight)) },
                         p.h !== null && c.isTop && p.h < c.brickHeight && { top: rowH * (1 - p.h / c.brickHeight) },
                         p.isCut && styles.cut,
+                        p.isCut && selected === pieceKey(p) && styles.cutOn,
                       ]}
                     >
                       {p.isCut && (
-                        <Text numberOfLines={1} style={styles.label}>
+                        <Text numberOfLines={1} style={[styles.label, selected === pieceKey(p) && styles.labelOn]}>
                           {cutLabel(p)}
                         </Text>
                       )}
@@ -69,5 +70,7 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "center",
   },
   cut: { backgroundColor: c.brandTertiary },
+  cutOn: { backgroundColor: c.brandPrimary },
+  labelOn: { color: c.onBrandPrimary },
   label: { fontFamily: fonts.mono, fontSize: 9, color: c.onBrandTertiary },
 }));

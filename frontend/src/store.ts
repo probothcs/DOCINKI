@@ -36,10 +36,20 @@ export function useSettings() {
 }
 
 // Draft walls passed from Nowa -> Edytuj -> Wynik (several walls can be calculated together)
-export type Draft = WallInput & { notes?: string };
+export type Draft = WallInput & { notes?: string; savedId?: string };
 export const EMPTY_DRAFT: Draft = { name: "", length: 0, height: 0, thickness: 14, openings: [] };
 let drafts: Draft[] = [];
 let editIndex = 0;
+// project name and saved walls removed from the batch (deleted when the batch is saved again)
+let batchProject = "";
+let pendingDeletes: string[] = [];
+export const getBatchMeta = () => ({ project: batchProject, pendingDeletes });
+export const loadBatch = (ds: Draft[], project: string) => {
+  editIndex = 0;
+  batchProject = project;
+  pendingDeletes = [];
+  setDrafts(ds);
+};
 const draftListeners = new Set<() => void>();
 const setDrafts = (d: Draft[]) => {
   drafts = d;
@@ -57,13 +67,19 @@ export const setEditIndex = (i: number) => {
 };
 export const startNewBatch = (d: Draft) => {
   editIndex = 0;
+  batchProject = "";
+  pendingDeletes = [];
   setDrafts([d]);
 };
 export const addDraft = (d: Draft) => {
   editIndex = drafts.length;
   setDrafts([...drafts, d]);
 };
-export const removeDraft = (i: number) => setDrafts(drafts.filter((_, j) => j !== i));
+export const removeDraft = (i: number) => {
+  const id = drafts[i]?.savedId;
+  if (id) pendingDeletes = [...pendingDeletes, id];
+  setDrafts(drafts.filter((_, j) => j !== i));
+};
 export const isValidDraft = (d: Draft) => d.length > 0 && d.height > 0;
 
 export function useDrafts() {

@@ -7,7 +7,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/api";
-import { calculate, mergeGroups, normalizeSettings } from "@/src/calc";
+import { calculate, cutLocations, mergeGroups, normalizeSettings } from "@/src/calc";
 import { AddWallActions } from "@/src/components/AddWallActions";
 import { CutGroupsList, ResultView } from "@/src/components/ResultView";
 import { useToast } from "@/src/components/toast";
@@ -16,10 +16,11 @@ import { fonts } from "@/src/fonts";
 import {
   addDraft,
   Draft,
+  getBatchMeta,
   isValidDraft,
+  loadBatch,
   removeDraft,
   setEditIndex,
-  startNewBatch,
   useDrafts,
   useSettings,
 } from "@/src/store";
@@ -32,7 +33,7 @@ export default function ResultScreen() {
   const router = useRouter();
   const toast = useToast();
   const qc = useQueryClient();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, add } = useLocalSearchParams<{ id?: string; add?: string }>();
   const settings = useSettings();
   const [saving, setSaving] = useState(false);
   const saved = useQuery({ queryKey: ["wall", id], queryFn: () => api.getWall(id!), enabled: !!id });
@@ -57,7 +58,16 @@ export default function ResultScreen() {
       top: rs.reduce((n, r) => n + r.topFull, 0),
     };
   }, [draftItems]);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(add === "1");
+  const [selected, setSelected] = useState<string | null>(null);
+  const toggleSel = (k: string) => setSelected((cur) => (cur === k ? null : k));
+  const totalLocations = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    draftItems.forEach(({ r }, n) =>
+      Object.entries(cutLocations(r)).forEach(([k, v]) => (m[k] ??= []).push(`Ś${n + 1}: ${v.join(", ")}`)),
+    );
+    return Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.join(" · ")]));
+  }, [draftItems]);
   // saved walls are recalculated with their own saved settings (keeps old records in the current format)
   const savedSettings = useMemo(() => (saved.data ? normalizeSettings(saved.data.settings) : null), [saved.data]);
   const savedResult = useMemo(
@@ -71,15 +81,20 @@ export default function ResultScreen() {
     try {
       const count = draftItems.length;
       const word = count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? "ściany" : "ścian";
-      const project = count > 1 ? `Projekt ${new Date().toLocaleDateString("pl-PL")} (${count} ${word})` : "";
+      const meta = getBatchMeta();
+      const base = meta.project.replace(/\s*\(\d+ ścian[y]?\)$/, "") || `Projekt ${new Date().toLocaleDateString("pl-PL")}`;
+      const project = count > 1 ? `${base} (${count} ${word})` : meta.project;
       let lastId = "";
       for (const { d, r } of draftItems) {
-        const { notes: _n, ...wall } = d;
+        const { notes: _n, savedId: _s, ...wall } = d;
         const w = await api.saveWall({ ...wall, project, settings, result: r });
         lastId = w.id;
       }
+      // replace previously saved versions of these walls
+      const old = [...draftItems.map((x) => x.d.savedId).filter((x): x is string => !!x), ...meta.pendingDeletes];
+      await Promise.all(old.map((oid) => api.deleteWall(oid).catch(() => null)));
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      qc.invalidateQueries({ queryKey: ["walls"] });
+      await qc.invalidateQueries({ queryKey: ["walls"] });
       toast(count > 1 ? `Zapisano ${count} ${word}` : "Ściana zapisana");
       if (draftItems.length > 1) router.replace("/(tabs)/history");
       else router.replace({ pathname: "/result", params: { id: lastId } });
@@ -116,8 +131,25 @@ export default function ResultScreen() {
   const editAgain = () => {
     if (!saved.data) return;
     const { name, length, height, thickness, openings } = saved.data;
-    startNewBatch({ name, length, height, thickness, openings });
+    loadBatch([{ name, length, height, thickness, openings, savedId: saved.data.id }], saved.data.project ?? "");
     router.push("/edit");
+  };
+
+  // open this wall (and the rest of its project) as an editable batch to add more walls
+  const openBatch = async () => {
+    const cur = saved.data;
+    if (!cur) return;
+    let walls = [cur];
+    if (cur.project) {
+      try {
+        walls = (await api.listWalls()).filter((w) => w.project === cur.project).reverse();
+      } catch {}
+    }
+    loadBatch(
+      walls.map((w) => ({ name: w.name, length: w.length, height: w.height, thickness: w.thickness, openings: w.openings, savedId: w.id })),
+      cur.project ?? "",
+    );
+    router.replace({ pathname: "/result", params: { add: "1" } });
   };
 
   const [confirmDel, setConfirmDel] = useState(false);
@@ -135,7 +167,7 @@ export default function ResultScreen() {
           saved.isLoading ? (
             <ActivityIndicator color={colors.brandPrimary} />
           ) : saved.data && savedResult && savedSettings ? (
-            <ResultView wall={saved.data} result={savedResult} settings={savedSettings} />
+            <ResultView wall={saved.data} result={savedResult} settings={savedSettings} selected={selected} onSelect={toggleSel} />
           ) : (
             <Text testID="result-error" style={styles.err}>BŁĄD: nie znaleziono ściany</Text>
           )
@@ -151,7 +183,15 @@ export default function ResultScreen() {
                 <Text testID="project-total-stats" style={styles.totalSub}>
                   {total.full} pełnych bloczków · {total.cuts} docinek{total.top ? ` · ${total.top} cegieł na górę` : ""}
                 </Text>
-                <CutGroupsList groups={total.groups} blockLength={settings.blockLength} prefix="total-cut-group-" />
+                <Text style={styles.totalSub}>Dotknij docinkę — podświetlę ją na rysunkach wszystkich ścian</Text>
+                <CutGroupsList
+                  groups={total.groups}
+                  blockLength={settings.blockLength}
+                  prefix="total-cut-group-"
+                  selected={selected}
+                  onSelect={toggleSel}
+                  locations={totalLocations}
+                />
               </View>
             )}
             {draftItems.map(({ d, r, i }, n) => (
@@ -171,7 +211,7 @@ export default function ResultScreen() {
                     </View>
                   </View>
                 )}
-                <ResultView wall={d} result={r} settings={settings} />
+                <ResultView wall={d} result={r} settings={settings} selected={selected} onSelect={toggleSel} />
                 {draftItems.length === 1 && (
                   <Button testID="draft-edit-0" variant="outline" icon="create" label="Popraw wymiary" onPress={() => editDraft(i)} />
                 )}
@@ -188,9 +228,12 @@ export default function ResultScreen() {
               <Button testID="cancel-delete-button" variant="outline" label="Anuluj" style={{ flex: 1 }} onPress={() => setConfirmDel(false)} />
             </View>
           ) : (
-            <View style={styles.row}>
-              <Button testID="recalculate-button" icon="create" label="Edytuj" style={{ flex: 1 }} onPress={editAgain} />
-              <Button testID="delete-wall-button" variant="outline" icon="trash" label="Usuń" style={{ flex: 1 }} onPress={() => setConfirmDel(true)} />
+            <View style={styles.gap}>
+              <Button testID="saved-add-wall-button" variant="outline" icon="add" label="Dodaj ścianę do projektu" onPress={openBatch} />
+              <View style={styles.row}>
+                <Button testID="recalculate-button" icon="create" label="Edytuj" style={{ flex: 1 }} onPress={editAgain} />
+                <Button testID="delete-wall-button" variant="outline" icon="trash" label="Usuń" style={{ flex: 1 }} onPress={() => setConfirmDel(true)} />
+              </View>
             </View>
           )
         ) : (
