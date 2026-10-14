@@ -1,0 +1,165 @@
+{
+  "app_name": "Docinki Pro",
+  "personality": "5 Brutalist Mobile LIGHT",
+  "personality_one_liner": "An industrial, high-contrast, indestructible utility tool built for gloved hands and bright factory floors.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#18181B",
+    "surfaceSecondary": "#F4F4F5",
+    "onSurfaceSecondary": "#18181B",
+    "surfaceTertiary": "#E4E4E7",
+    "onSurfaceTertiary": "#18181B",
+    "surfaceInverse": "#18181B",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#FF5722",
+    "onBrand": "#FFFFFF",
+    "brandPrimary": "#FF5722",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E64A19",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#FFCCBC",
+    "onBrandTertiary": "#18181B",
+    "success": "#16A34A",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F59E0B",
+    "onWarning": "#18181B",
+    "error": "#DC2626",
+    "onError": "#FFFFFF",
+    "info": "#2563EB",
+    "onInfo": "#FFFFFF",
+    "border": "#18181B",
+    "borderStrong": "#18181B",
+    "divider": "#E4E4E7",
+    "muted": "#71717A"
+  },
+  "typography": {
+    "displayFontFamily": "SpaceGrotesk-Bold",
+    "textFontFamily": "SpaceMono-Regular",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32
+    }
+  },
+  "spacing": {
+    "rule": "Industrial spacing. Use thick structural borders and zero radius. Touch targets must be massive (min 56px height) for gloved hands.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 0,
+    "md": 0,
+    "lg": 0,
+    "pill": 0
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": ["Never use glass. Brutalist apps require solid, opaque surfaces and hard lines."]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Nowa (Home)",
+      "purpose": "Primary entry point to start a new wall calculation either via camera scan or manual entry.",
+      "states": {
+        "loading": "Centered monospace text 'ŁADOWANIE...' with a hard-edged progress bar.",
+        "empty": "No recent scans - show 'BRAK HISTORII' in big text.",
+        "error": "Red error box with sharp corners and 'BŁĄD' message."
+      },
+      "layout": "Top section: Industrial Header 'DOCINKI PRO'. Middle section: Massive full-width primary CTA 'SKANUJ RYSUNEK' (Scan Drawing) with a huge camera icon (brandPrimary background, onBrandPrimary text, 2pt border). Below it: 'WPROWADŹ RĘCZNIE' (Manual Entry) as a secondary outline button. Bottom section: Quick list of 2-3 recent calculations. All cards and buttons have 2pt solid borders and 0 radius."
+    },
+    {
+      "name": "Skaner (Scanner AI)",
+      "purpose": "Take a photo of the architect's drawing for Gemini 3 Flash to process.",
+      "states": {
+        "loading": "Full screen 'ANALIZA AI TRWA...' (AI Analysis in progress) with a flashing block animation.",
+        "empty": "N/A",
+        "error": "Error reading dimensions -> Fallback to manual entry."
+      },
+      "layout": "Full-screen camera view. Overlay a targeting frame (aspect ratio of A4 paper). Bottom panel: Solid black surfaceInverse container with a massive white Shutter button. Text instructions overlay: 'WYKADRUJ CAŁY RYSUNEK' (Frame the entire drawing)."
+    },
+    {
+      "name": "Wynik (Wall Detail / Cut List)",
+      "purpose": "Displays the calculated cuts ('docinki') per course based on the AI analysis or manual input, allowing edits.",
+      "states": {
+        "loading": "Skeleton rows of monospace numbers.",
+        "empty": "No cuts needed (rare) - show 'IDEALNIE DOPASOWANE'.",
+        "error": "Calculation error -> show red warning banner."
+      },
+      "layout": "Sticky primary CTA at bottom ('ZAPISZ' - Save). Top: Wall ID and overall dimensions (e.g., 'ŚCIANA F1-14402 | 320x301 cm') in huge SpaceGrotesk type. Middle: Tabular, row-by-row cut list grouped by course (Warstwa 1, 2, 3...). Rows use monospace font for measurements. Right side of each row shows the cut dimension in bold. Include a summary block ('Zestawienie cięć') grouping same-length cuts to minimize saw setup time."
+    },
+    {
+      "name": "Historia (History)",
+      "purpose": "List of previously saved walls and their cut lists.",
+      "states": {
+        "loading": "Loading skeleton.",
+        "empty": "Illustration of blueprint (from image_selector) + 'HISTORIA PUSTA'.",
+        "error": "Fetch error."
+      },
+      "layout": "Standard list view but brutalist. Each row is a thick-bordered rectangle. Row layout: Left side Wall ID, Right side Date. Subtext: dimensions. Touch targets are large (min 64px height)."
+    },
+    {
+      "name": "Ustawienia (Settings)",
+      "purpose": "Configure default block sizes, bond type, tolerance, and clearance (luz) for the factory floor.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "Validation error on inputs (e.g., invalid size)."
+      },
+      "layout": "Single-column form. Labels above inputs in uppercase monospace. Inputs are massive rectangular boxes (surfaceSecondary with 2pt border). Fields: Domyślny Blok (Default 50x25 cm), Tolerancja (Tolerance, e.g. 98cm instead of 100), Luz (Clearance, e.g. -1cm), Min. wielkość docinki (Min cut size). Sticky 'ZAPISZ USTAWIENIA' button at the bottom."
+    }
+  ],
+  "images": {
+    "blueprint_empty_state": {
+      "url": "https://images.unsplash.com/photo-1742415106102-77bbfe14b872?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwxfHxibHVlcHJpbnQlMjBzY2hlbWF0aWMlMjBkcmF3aW5nJTIwb2YlMjBhJTIwYnJpY2slMjB3YWxsJTIwbGF5b3V0fGVufDB8fHx8MTc5MjAwMjQ4N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Blueprint schematic drawing of a brick wall layout"
+    },
+    "factory_header_backdrop": {
+      "url": "https://images.unsplash.com/photo-1662814439140-82b59abfce42?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwZmFjdG9yeSUyMGNvbnN0cnVjdGlvbiUyMHNpdGUlMjBjbGF5JTIwYnJpY2tzfGVufDB8fHx8MTc5MjAwMjQ4N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Industrial factory construction site with cranes and clay bricks"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Brutalist Mobile LIGHT personality. This is a tool for factory workers wearing gloves.",
+    "Use 2pt solid borders on buttons, cards, and inputs. ZERO border radius everywhere.",
+    "Typography: Use SpaceGrotesk-Bold for headers/labels and SpaceMono-Regular for all data, measurements, and inputs to create a technical, precise feel.",
+    "Navigation: 3 Bottom Tabs -> Nowa, Historia, Ustawienia.",
+    "Screen 'Nowa' must emphasize the 'Skanuj Rysunek' (Scan) action with a huge touch target.",
+    "Screen 'Wynik' must structure cuts course-by-course (Warstwa) clearly, making it easy to read on a dusty/bright factory floor.",
+    "Implement the Settings page with the precise variables requested: Block size (default 50x25), Tolerance, and 'Luz' (Clearance).",
+    "Integrate a mock or real Gemini API call on the Scanner screen to parse the image, but gracefully fallback to a manual dimension editor if it fails.",
+    "Ensure all interactive touch targets are AT LEAST 56px high, preferably 64px, to accommodate gloved hands.",
+    "Do NOT use glassmorphism, blur, or subtle shadows. Everything should be flat, high-contrast, and strictly structural."
+  ],
+  "haptics": {
+    "primary_button_press": "impactHeavy",
+    "secondary_button_press": "impactMedium",
+    "tab_change": "selection",
+    "camera_shutter": "impactHeavy",
+    "save_success": "notificationSuccess",
+    "error_alert": "notificationError"
+  }
+}

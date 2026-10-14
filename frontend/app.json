@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Docinki Pro",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "frontend",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.snapwallcuts.z9n6n4",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fotografuj rysunek ściany, aby policzyć docinki",
+        "NSPhotoLibraryUsageDescription": "Wybierz zdjęcie rysunku ściany z galerii"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.emergent.snapwallcuts.z9n6n4",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-image.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-status-bar",
+      "@react-native-vector-icons/ionicons",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Fotografuj rysunek ściany, aby policzyć docinki",
+          "photosPermission": "Wybierz zdjęcie rysunku ściany z galerii"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
