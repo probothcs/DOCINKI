@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { DEFAULT_SETTINGS, Settings, WallInput } from "./calc";
+import { DEFAULT_SETTINGS, normalizeSettings, Settings, WallInput } from "./calc";
 import { storage } from "./utils/storage";
 
 const KEY = "docinki-settings";
@@ -11,7 +11,7 @@ const listeners = new Set<(s: Settings) => void>();
 storage.getItem(KEY, null).then((raw) => {
   if (typeof raw === "string") {
     try {
-      current = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      current = normalizeSettings(JSON.parse(raw));
       listeners.forEach((l) => l(current));
     } catch {}
   }

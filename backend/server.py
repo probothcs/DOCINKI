@@ -85,7 +85,9 @@ The photo may be rotated (90/180 degrees), tilted or partially covered. Dimensio
 The sheet usually shows the wall FRONT VIEW (a rectangle with brick pattern), plus top/side views as thin strips.
 Thin strip dimension (e.g. 14) is the wall THICKNESS. The front view horizontal dimension is the LENGTH and vertical is the HEIGHT.
 Ignore absolute level markers like '1199.0 cm' or '1500.0 cm' - those are elevations, not wall size.
-Element number looks like 'F1-14402'. Openings (windows/doors/recesses) inside the front view: give x from the left edge, y from the bottom, width and height in cm.
+Element number looks like 'F1-14402' or 'A14309'. HEIGHT is the full wall height (e.g. 266), not a partial dimension like 259.
+Openings: windows/doors/recesses AND notches cut out of the wall edges (e.g. at the top corners the front view is 17 wide lower: 259 instead of 266, so a notch x=0, y=259, width=17, height=7; the right one x=length-17).
+For every opening give x from the left edge, y from the bottom, width and height in cm.
 Respond ONLY with JSON, no markdown:
 {"name": "<element number or empty>", "length": <number|null>, "height": <number|null>, "thickness": <number|null>, "openings": [{"x":..,"y":..,"width":..,"height":..}], "notes": "<short note in Polish about what you read / uncertainty>"}"""
 

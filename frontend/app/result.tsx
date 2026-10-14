@@ -7,7 +7,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/api";
-import { calculate } from "@/src/calc";
+import { calculate, normalizeSettings } from "@/src/calc";
 import { ResultView } from "@/src/components/ResultView";
 import { useToast } from "@/src/components/toast";
 import { Button } from "@/src/components/ui";
@@ -29,6 +29,12 @@ export default function ResultScreen() {
 
   const draft = getDraft();
   const draftResult = useMemo(() => (id ? null : calculate(draft, settings)), [id, draft, settings]);
+  // saved walls are recalculated with their own saved settings (keeps old records in the current format)
+  const savedSettings = useMemo(() => (saved.data ? normalizeSettings(saved.data.settings) : null), [saved.data]);
+  const savedResult = useMemo(
+    () => (saved.data && savedSettings ? calculate(saved.data, savedSettings) : null),
+    [saved.data, savedSettings],
+  );
 
   const save = async () => {
     if (!draftResult) return;
@@ -80,8 +86,8 @@ export default function ResultScreen() {
         {id ? (
           saved.isLoading ? (
             <ActivityIndicator color={colors.brandPrimary} />
-          ) : saved.data ? (
-            <ResultView wall={saved.data} result={saved.data.result} settings={saved.data.settings} />
+          ) : saved.data && savedResult && savedSettings ? (
+            <ResultView wall={saved.data} result={savedResult} settings={savedSettings} />
           ) : (
             <Text testID="result-error" style={styles.err}>BŁĄD: nie znaleziono ściany</Text>
           )

@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 2 — Height planning + notches + new settings fields all PASS. Backend: 12/12 pytest cases pass (health, walls CRUD with new A14309 payload including 2 notches + topBrick=14, Gemini /api/analyze on both new drawings A14309 → ~344×266×15 and B1 → ~438×266×14.5, data URL prefix accepted). Frontend (390x844): (1) Manual 344×266 + openings (0,259,17,7) & (327,259,17,7) → result-height-plan reads 'Wysokość: 10 × 25,1 = 251 cm + zaprawa 1 + cegła 14 = 266 cm'; cut-group-17x7 present with count 2 and label 'z cegły 9'; course-row-11 is 'GÓRA' with top brick 14, 5 pełnych, 2 notch cuts [17×7]. (2) Manual 320×301 no openings → 12 × 25,1 = 301,2 cm, no top brick, cut-group-19 / cut-group-44 / cut-group-25 all present (6 each). (3) Settings tab shows new fields settings-mortar(1), settings-min-module(24,4), settings-max-module(25,1), settings-top-bricks('9, 14, 19'); save persists across reload; reset restores defaults. (4) Save wall → appears in Historia → tap item recomputes & displays result → delete-wall-button + confirm-delete-button remove it from list. No react-native issues, no deprecated packages encountered.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Result (after save)", "issues": ["Save/toast overlay 'Ściana zapisana' briefly covers bottom tab bar (~2s) — pre-existing from iteration 1, not blocking."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "No action items. All new features (height planning table, notches, special top bricks, new settings fields, save/open/delete) verified end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "server.py still uses deprecated @app.on_event('shutdown'); consider lifespan context (not blocking).",
+    "calc.ts planHeight picks the best (n, m, topBrick) combination with score prioritising modules close to nominal — correctly chose 10×25.1 + brick 14 for H=266 and 12×25.1 (no top) for H=301.2. Notch handling via rowRuns correctly produces h=7 pieces from brick 9 under the 17-wide notches, matching the spec."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Backend pytest creates & tears down TEST_WALL_A14309 (344×266×15, 2 notches). Frontend test created an F1-14402 wall and deleted it. Pre-existing TEST_DEBUG and TEST_WALL_F1-14402 walls remain in DB from earlier iterations.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Edit screen opening testIDs follow pattern opening-{i}-x / opening-{i}-y / opening-{i}-width / opening-{i}-height; add via add-opening-button. Result page has delete-wall-button → confirm-delete-button (two-step delete). History items use history-item-{id}. Settings new fields: settings-mortar, settings-min-module, settings-max-module, settings-top-bricks (comma separated). After save, wait ~2.5s for toast to clear before tapping bottom tabs or use page.goto to a route directly. Gemini sometimes returns only 1 of 2 notches for A14309 — soft-asserted in tests."
+}

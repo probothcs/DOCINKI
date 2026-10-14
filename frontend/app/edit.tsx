@@ -73,7 +73,8 @@ export default function EditScreen() {
         </View>
         <Field testID="edit-thickness" label="Grubość" suffix="cm" value={thickness} onChangeText={setThickness} />
 
-        <SectionTitle>Otwory (okna / drzwi)</SectionTitle>
+        <SectionTitle>Otwory / wycięcia</SectionTitle>
+        <Text style={styles.hint}>Wycięcie w górnym rogu: od lewej 0, od dołu 259, szer. 17, wys. 7 (ściana 266)</Text>
         {openings.map((o, i) => (
           <View key={i} style={styles.openBox} testID={`opening-${i}`}>
             <View style={styles.openHead}>
@@ -124,6 +125,7 @@ const useStyles = makeStyles((c) => ({
   title: { fontFamily: fonts.display, fontSize: 22, color: c.onSurface },
   content: { padding: 16, gap: 16 },
   row: { flexDirection: "row", gap: 12 },
+  hint: { fontFamily: fonts.mono, fontSize: 11, color: c.muted, marginTop: -8 },
   notes: { backgroundColor: c.brandTertiary, borderWidth: 2, borderColor: c.border, padding: 12, gap: 4 },
   notesTitle: { fontFamily: fonts.display, fontSize: 14, color: c.onBrandTertiary },
   notesText: { fontFamily: fonts.mono, fontSize: 12, color: c.onBrandTertiary },

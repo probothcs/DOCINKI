@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 
 import type { CalcResult, Settings, WallInput } from "../calc";
-import { fmt } from "../calc";
+import { cutLabel, fmt } from "../calc";
 import { fonts } from "../fonts";
 import { makeStyles } from "../theme";
 import { SectionTitle } from "./ui";
@@ -28,13 +28,24 @@ export function ResultView({ wall, result, settings }: { wall: WallInput; result
 
       <View testID="result-params" style={styles.params}>
         <Text style={styles.paramText}>Moduł bloczka: {fmt(result.module)} cm (tol. {settings.tolerance100}/100)</Text>
-        <Text style={styles.paramText}>Wysokość warstwy: {result.courseHeight.toLocaleString("pl-PL")} cm</Text>
+        <Text testID="result-height-plan" style={styles.paramText}>
+          Wysokość: {result.courseCount} × {fmt(result.courseHeight)} = {fmt(result.stackHeight)} cm
+          {result.topBrick !== null
+            ? ` + zaprawa ${fmt(settings.mortar)} + ${result.topIsCut ? "docinka wys." : "cegła"} ${fmt(result.topBrick)} = ${fmt(wall.height)} cm`
+            : ""}
+        </Text>
+        {result.topBrick !== null && !result.topIsCut && (
+          <Text style={styles.paramText}>
+            Góra: {result.topFull} × cegła {fmt(result.topBrick)} (pełne)
+          </Text>
+        )}
         <Text style={styles.paramText}>Luz: {fmt(settings.luz)} cm · Min. kawałek: {fmt(settings.minPiece)} cm</Text>
       </View>
       {result.heightWarning && (
         <View testID="height-warning" style={styles.warn}>
           <Text style={styles.warnText}>
-            UWAGA: wysokość warstwy odbiega od {settings.blockHeight} cm o więcej niż 2,5%. Sprawdź wysokość ściany.
+            UWAGA: nie da się dobrać warstw z zakresu {fmt(settings.minModule)}–{fmt(settings.maxModule)} cm i cegieł{" "}
+            {settings.topBricks.join("/")}. Górną warstwę trzeba dociąć na wysokość.
           </Text>
         </View>
       )}
@@ -49,8 +60,13 @@ export function ResultView({ wall, result, settings }: { wall: WallInput; result
       ) : (
         <View style={styles.table}>
           {result.cutGroups.map((g) => (
-            <View key={g.len} style={styles.groupRow} testID={`cut-group-${g.len}`}>
-              <Text style={styles.groupLen}>{fmt(g.len)} cm</Text>
+            <View key={`${g.len}|${g.h}|${g.from}`} style={styles.groupRow} testID={`cut-group-${g.h !== null ? `${g.len}x${g.h}` : g.len}`}>
+              <View>
+                <Text style={styles.groupLen}>{cutLabel(g)} cm</Text>
+                <Text style={styles.courseSub}>
+                  {g.h !== null ? "dł. × wys. · " : ""}z cegły {fmt(g.from)}
+                </Text>
+              </View>
               <Text style={styles.groupCount}>× {g.count}</Text>
             </View>
           ))}
@@ -62,16 +78,18 @@ export function ResultView({ wall, result, settings }: { wall: WallInput; result
         {result.courses.map((c) => (
           <View key={c.index} style={styles.courseRow} testID={`course-row-${c.index}`}>
             <View style={styles.courseLeft}>
-              <Text style={styles.courseNo}>W{c.index}</Text>
+              <Text style={styles.courseNo}>{c.isTop ? "GÓRA" : `W${c.index}`}</Text>
               <Text style={styles.courseSub}>{c.startsHalf ? "od ½" : "od pełnego"}</Text>
             </View>
             <View style={styles.courseMid}>
-              <Text style={styles.courseFull}>{c.full} pełnych</Text>
+              <Text style={styles.courseFull}>
+                {c.full} pełnych{c.isTop ? ` · cegła ${fmt(c.brickHeight)}` : ""}
+              </Text>
               <Text style={styles.seq} numberOfLines={3}>
-                {c.segments.map((seg) => seg.map((p) => (p.isCut ? `[${fmt(p.cutLen)}]` : "■")).join(" ")).join("  |  ")}
+                {c.segments.map((seg) => seg.map((p) => (p.isCut ? `[${cutLabel(p)}]` : "■")).join(" ")).join("  |  ")}
               </Text>
             </View>
-            <Text style={styles.courseCuts}>{c.cuts.length ? c.cuts.map(fmt).join(" / ") : "—"}</Text>
+            <Text style={styles.courseCuts}>{c.cuts.length ? c.cuts.map(cutLabel).join(" / ") : "—"}</Text>
           </View>
         ))}
       </View>

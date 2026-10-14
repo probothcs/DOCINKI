@@ -10,39 +10,61 @@ export type WallInput = {
 
 export type Settings = {
   blockLength: number; // nominal, cm
-  blockHeight: number; // nominal, cm
+  blockHeight: number; // regular brick height, e.g. 24
+  mortar: number; // bed joint, e.g. 1
+  minModule: number; // smallest course height from the table, e.g. 24.4
+  maxModule: number; // largest course height from the table, e.g. 25.1
+  topBricks: number[]; // special low bricks for the top course, e.g. 9, 14, 19
   tolerance100: number; // real length of 100 cm of blocks, e.g. 98
   luz: number; // slack subtracted from every cut, cm
   minPiece: number; // smallest acceptable piece, cm
-  firstCourseHalf: boolean; // first (bottom) course starts with a half block
+  firstCourseHalf: boolean; // kept for saved data, always false
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   blockLength: 50,
-  blockHeight: 25,
+  blockHeight: 24,
+  mortar: 1,
+  minModule: 24.4,
+  maxModule: 25.1,
+  topBricks: [9, 14, 19],
   tolerance100: 100,
   luz: 1,
   minPiece: 10,
   firstCourseHalf: false,
 };
 
-export type Piece = { start: number; len: number; isCut: boolean; cutLen: number };
+// older saved settings used blockHeight = 25 as course height without mortar
+export function normalizeSettings(raw: Partial<Settings> | null | undefined): Settings {
+  const s = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
+  if (raw && raw.mortar === undefined && raw.blockHeight === 25) s.blockHeight = 24;
+  return s;
+}
+
+export type Piece = { start: number; len: number; isCut: boolean; cutLen: number; h: number | null; from: number };
 export type Course = {
   index: number; // 1 = bottom
   bottom: number;
+  height: number;
+  brickHeight: number;
+  isTop: boolean;
   startsHalf: boolean;
   segments: Piece[][];
   full: number;
-  cuts: number[];
+  cuts: Piece[];
 };
-export type CutGroup = { len: number; count: number };
+export type CutGroup = { len: number; h: number | null; from: number; count: number };
 export type CalcResult = {
   module: number;
   courseCount: number;
   courseHeight: number;
+  stackHeight: number;
+  topBrick: number | null;
+  topIsCut: boolean;
   heightWarning: boolean;
   courses: Course[];
   totalFull: number;
+  topFull: number;
   totalCuts: number;
   cutGroups: CutGroup[];
 };
@@ -52,7 +74,46 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 
 export const fmt = (n: number) => r1(n).toLocaleString("pl-PL", { maximumFractionDigits: 1 });
 
-function segmentPieces(s: number, e: number, offset: number, b: number, s0: Settings): Piece[] {
+function sourceBrick(h: number, s: Settings) {
+  const all = [s.blockHeight, ...s.topBricks].sort((a, z) => a - z);
+  return all.find((x) => x >= h - EPS) ?? s.blockHeight;
+}
+
+type HeightPlan = { n: number; m: number; t: number; topIsCut: boolean; warning: boolean };
+
+// Pick course count n and course height m from the table range (e.g. 24.4–25.1),
+// optionally topped with a low brick (9/14/19 + mortar), closest to the nominal course.
+function planHeight(H: number, s: Settings): HeightPlan {
+  const nominal = s.blockHeight + s.mortar;
+  let best: (HeightPlan & { score: number }) | null = null;
+  for (let n = 1; n <= Math.ceil(H / Math.max(s.minModule, 1)); n++) {
+    for (const t of [0, ...s.topBricks]) {
+      const target = H - (t ? t + s.mortar : 0);
+      if (target <= 0) continue;
+      const m = r1(target / n);
+      if (m < s.minModule - 1e-9 || m > s.maxModule + 1e-9) continue;
+      const err = Math.abs(n * m - target);
+      if (err > 0.5) continue;
+      const score = Math.abs(m - nominal) + err * 2 + (t ? 0.001 : 0);
+      if (!best || score < best.score) best = { n, m, t, topIsCut: false, warning: false, score };
+    }
+  }
+  if (best) return best;
+  // fallback: nominal courses + top cut in height from a regular brick
+  const n = Math.max(1, Math.floor(H / nominal));
+  const rest = r1(H - n * nominal - s.mortar);
+  return { n, m: nominal, t: rest > 1 ? rest : 0, topIsCut: rest > 1, warning: true };
+}
+
+function segmentPieces(
+  s: number,
+  e: number,
+  offset: number,
+  b: number,
+  s0: Settings,
+  h: number | null,
+  from: number,
+): Piece[] {
   const cuts: number[] = [];
   let k = Math.ceil((s - offset) / b - 1e-9);
   for (let p = offset + k * b; p < e - EPS; k++, p = offset + k * b) {
@@ -74,69 +135,116 @@ function segmentPieces(s: number, e: number, offset: number, b: number, s0: Sett
   const half = s0.blockLength / 2;
   let pos = s;
   return lens.map((len) => {
-    const isCut = len < b - EPS;
+    const shortLen = len < b - EPS;
+    const isCut = shortLen || h !== null;
     // the starting half block at the wall edge is always a fixed half (e.g. 25), no luz
-    const isStartHalf = isCut && pos < EPS && offset > 0 && Math.abs(len - half) < EPS;
-    const cutLen = isStartHalf ? r1(half) : isCut ? r1(Math.max(len - s0.luz, 0)) : 0;
-    const piece = { start: pos, len: r1(len), isCut, cutLen };
+    const isStartHalf = shortLen && pos < EPS && offset > 0 && Math.abs(len - half) < EPS;
+    // height-cut pieces (under notches) keep the exact drawing length
+    const cutLen = !isCut ? 0 : isStartHalf ? r1(half) : h !== null ? r1(len) : r1(Math.max(len - s0.luz, 0));
+    const piece: Piece = { start: pos, len: r1(len), isCut, cutLen, h, from: h !== null ? sourceBrick(h, s0) : from };
     pos += len;
     return piece;
   });
 }
 
-export function calculate(w: WallInput, s: Settings): CalcResult {
-  const b = (s.blockLength * s.tolerance100) / 100;
-  const courseCount = Math.max(1, Math.round(w.height / s.blockHeight));
-  const courseHeight = w.height / courseCount;
-  const heightWarning = Math.abs(courseHeight - s.blockHeight) / s.blockHeight > 0.025;
+type Row = { bottom: number; top: number; brickH: number; isTop: boolean };
+type Run = { s: number; e: number; h: number | null };
 
-  const courses: Course[] = [];
-  for (let i = 0; i < courseCount; i++) {
-    const bottom = i * courseHeight;
-    const top = bottom + courseHeight;
+function rowRuns(w: WallInput, row: Row, s: Settings, rowCutH: number | null): Run[] {
+  const rel = w.openings.filter((o) => Math.min(row.top, o.y + o.height) - Math.max(row.bottom, o.y) > 0.5);
+  const xs = [...new Set([0, w.length, ...rel.flatMap((o) => [o.x, o.x + o.width])])]
+    .filter((x) => x >= 0 && x <= w.length)
+    .sort((a, z) => a - z);
+  const runs: Run[] = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    const a = xs[i];
+    const z = xs[i + 1];
+    if (z - a <= EPS) continue;
+    const mid = (a + z) / 2;
+    let lo = row.bottom;
+    let hi = row.top;
+    let partial = false;
+    for (const o of rel) {
+      if (!(o.x < mid && mid < o.x + o.width)) continue;
+      const oTop = o.y + o.height;
+      partial = true;
+      if (o.y <= lo + EPS && oTop >= hi - EPS) {
+        lo = hi;
+        break;
+      }
+      if (oTop >= hi - EPS) hi = Math.min(hi, o.y);
+      else if (o.y <= lo + EPS) lo = Math.max(lo, oTop);
+      else if (o.y - lo >= hi - oTop) hi = o.y;
+      else lo = oTop;
+    }
+    const avail = hi - lo - s.mortar;
+    if (lo >= hi || avail < 1.5) continue;
+    const h = !partial || avail >= row.brickH - EPS ? rowCutH : r1(Math.min(avail, rowCutH ?? Infinity));
+    const last = runs[runs.length - 1];
+    if (last && Math.abs(last.e - a) < EPS && last.h === h) last.e = z;
+    else runs.push({ s: a, e: z, h });
+  }
+  return runs;
+}
+
+export function calculate(w: WallInput, settings: Settings): CalcResult {
+  const s = normalizeSettings(settings);
+  const b = (s.blockLength * s.tolerance100) / 100;
+  const plan = planHeight(w.height, s);
+
+  const rows: Row[] = [];
+  for (let i = 0; i < plan.n; i++) rows.push({ bottom: i * plan.m, top: (i + 1) * plan.m, brickH: s.blockHeight, isTop: false });
+  if (plan.t > 0) rows.push({ bottom: plan.n * plan.m, top: w.height, brickH: plan.t, isTop: true });
+
+  const courses: Course[] = rows.map((row, i) => {
     // bottom course starts with a full block, every second course starts with a half (blockLength / 2, e.g. 25)
     const startsHalf = i % 2 === 1;
     const offset = startsHalf ? s.blockLength / 2 : 0;
-
-    // free horizontal intervals after removing openings that cross this course
-    let free: [number, number][] = [[0, w.length]];
-    for (const o of w.openings) {
-      const overlap = Math.min(top, o.y + o.height) - Math.max(bottom, o.y);
-      if (overlap <= 1) continue;
-      const a = o.x;
-      const z = o.x + o.width;
-      free = free.flatMap(([fs, fe]) => {
-        if (z <= fs || a >= fe) return [[fs, fe] as [number, number]];
-        const out: [number, number][] = [];
-        if (a > fs) out.push([fs, a]);
-        if (z < fe) out.push([z, fe]);
-        return out;
-      });
-    }
-    const segments = free.filter(([fs, fe]) => fe - fs > EPS).map(([fs, fe]) => segmentPieces(fs, fe, offset, b, s));
+    const rowCutH = row.isTop && plan.topIsCut ? plan.t : null;
+    const from = row.isTop && !plan.topIsCut ? plan.t : s.blockHeight;
+    const segments = rowRuns(w, row, s, rowCutH).map((r) => segmentPieces(r.s, r.e, offset, b, s, r.h, from));
     const all = segments.flat();
-    courses.push({
+    return {
       index: i + 1,
-      bottom: r1(bottom),
+      bottom: r1(row.bottom),
+      height: r1(row.top - row.bottom),
+      brickHeight: row.brickH,
+      isTop: row.isTop,
       startsHalf,
       segments,
       full: all.filter((p) => !p.isCut).length,
-      cuts: all.filter((p) => p.isCut).map((p) => p.cutLen),
-    });
-  }
+      cuts: all.filter((p) => p.isCut),
+    };
+  });
 
-  const map = new Map<number, number>();
-  courses.forEach((c) => c.cuts.forEach((l) => map.set(l, (map.get(l) ?? 0) + 1)));
-  const cutGroups = [...map.entries()].map(([len, count]) => ({ len, count })).sort((a, z) => z.len - a.len);
+  const map = new Map<string, CutGroup>();
+  courses.forEach((c) =>
+    c.cuts.forEach((p) => {
+      const key = `${p.cutLen}|${p.h}|${p.from}`;
+      const g = map.get(key);
+      if (g) g.count++;
+      else map.set(key, { len: p.cutLen, h: p.h, from: p.from, count: 1 });
+    }),
+  );
+  const cutGroups = [...map.values()].sort((a, z) => z.from - a.from || z.len - a.len);
 
   return {
     module: r1(b),
-    courseCount,
-    courseHeight: Math.round(courseHeight * 100) / 100,
-    heightWarning,
+    courseCount: plan.n,
+    courseHeight: plan.m,
+    stackHeight: r1(plan.n * plan.m),
+    topBrick: plan.t > 0 ? plan.t : null,
+    topIsCut: plan.topIsCut,
+    heightWarning: plan.warning,
     courses,
-    totalFull: courses.reduce((n, c) => n + c.full, 0),
+    totalFull: courses.filter((c) => !c.isTop).reduce((n, c) => n + c.full, 0),
+    topFull: courses.filter((c) => c.isTop).reduce((n, c) => n + c.full, 0),
     totalCuts: courses.reduce((n, c) => n + c.cuts.length, 0),
     cutGroups,
   };
 }
+
+export const cutLabel = (p: { len?: number; cutLen?: number; h: number | null }) => {
+  const l = fmt(p.cutLen ?? p.len ?? 0);
+  return p.h !== null ? `${l}×${fmt(p.h)}` : l;
+};

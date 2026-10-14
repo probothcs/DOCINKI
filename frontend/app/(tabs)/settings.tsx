@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DEFAULT_SETTINGS, fmt } from "@/src/calc";
+import { DEFAULT_SETTINGS, fmt, Settings } from "@/src/calc";
 import { useToast } from "@/src/components/toast";
 import { Button, Field, toNum, toStr } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
@@ -11,28 +11,28 @@ import { usesNativeTabs } from "@/src/navigation";
 import { saveSettings, useSettings } from "@/src/store";
 import { makeStyles } from "@/src/theme";
 
+const toForm = (v: Settings) => ({
+  blockLength: toStr(v.blockLength),
+  blockHeight: toStr(v.blockHeight),
+  mortar: toStr(v.mortar) || "0",
+  minModule: toStr(v.minModule),
+  maxModule: toStr(v.maxModule),
+  topBricks: v.topBricks.join(", "),
+  tolerance100: toStr(v.tolerance100),
+  luz: toStr(v.luz) || "0",
+  minPiece: toStr(v.minPiece) || "0",
+});
+
 export default function SettingsScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
   const toast = useToast();
   const s = useSettings();
-  const [f, setF] = useState({
-    blockLength: toStr(s.blockLength),
-    blockHeight: toStr(s.blockHeight),
-    tolerance100: toStr(s.tolerance100),
-    luz: toStr(s.luz),
-    minPiece: toStr(s.minPiece),
-  });
+  const [f, setF] = useState(toForm(s));
 
   useEffect(() => {
-    setF({
-      blockLength: toStr(s.blockLength),
-      blockHeight: toStr(s.blockHeight),
-      tolerance100: toStr(s.tolerance100),
-      luz: toStr(s.luz) || "0",
-      minPiece: toStr(s.minPiece) || "0",
-    });
+    setF(toForm(s));
   }, [s]);
 
   const set = (k: keyof typeof f) => (t: string) => setF((p) => ({ ...p, [k]: t }));
@@ -42,6 +42,13 @@ export default function SettingsScreen() {
     const next = {
       blockLength: toNum(f.blockLength),
       blockHeight: toNum(f.blockHeight),
+      mortar: toNum(f.mortar),
+      minModule: toNum(f.minModule),
+      maxModule: toNum(f.maxModule),
+      topBricks: f.topBricks
+        .split(/[,;\s]+/)
+        .map(toNum)
+        .filter((n) => n > 0),
       tolerance100: toNum(f.tolerance100),
       luz: toNum(f.luz),
       minPiece: toNum(f.minPiece),
@@ -49,6 +56,10 @@ export default function SettingsScreen() {
     };
     if (next.blockLength <= 0 || next.blockHeight <= 0 || next.tolerance100 <= 0) {
       toast("Wymiary bloczka i tolerancja muszą być > 0", "error");
+      return;
+    }
+    if (next.minModule <= 0 || next.maxModule < next.minModule) {
+      toast("Warstwa min/max: min > 0 i max ≥ min", "error");
       return;
     }
     await saveSettings(next);
@@ -63,8 +74,22 @@ export default function SettingsScreen() {
       <KeyboardAwareScrollView bottomOffset={96} contentContainerStyle={styles.content}>
         <View style={styles.row}>
           <Field testID="settings-block-length" label="Długość bloczka" suffix="cm" value={f.blockLength} onChangeText={set("blockLength")} />
-          <Field testID="settings-block-height" label="Wysokość warstwy" suffix="cm" value={f.blockHeight} onChangeText={set("blockHeight")} />
+          <Field testID="settings-block-height" label="Wysokość cegły" suffix="cm" value={f.blockHeight} onChangeText={set("blockHeight")} />
         </View>
+        <Field testID="settings-mortar" label="Zaprawa (spoina)" suffix="cm" value={f.mortar} onChangeText={set("mortar")} />
+        <View style={styles.row}>
+          <Field testID="settings-min-module" label="Warstwa min" suffix="cm" value={f.minModule} onChangeText={set("minModule")} />
+          <Field testID="settings-max-module" label="Warstwa max" suffix="cm" value={f.maxModule} onChangeText={set("maxModule")} />
+        </View>
+        <Text style={styles.hintText}>Zakres z kartki z wysokościami (np. 24,4–25,1). 266 → 10 × 25,1 = 251 + zaprawa 1 + cegła 14</Text>
+        <Field
+          testID="settings-top-bricks"
+          label="Cegły na górę (wysokości)"
+          keyboardType="default"
+          value={f.topBricks}
+          onChangeText={set("topBricks")}
+          hint="Oddziel przecinkiem, np. 9, 14, 19"
+        />
         <Field
           testID="settings-tolerance"
           label="Tolerancja: 100 cm bloczków ="
@@ -95,7 +120,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
         <Pressable testID="settings-reset" onPress={() => saveSettings(DEFAULT_SETTINGS)} style={styles.reset}>
-          <Text style={styles.resetText}>Przywróć domyślne (50 × 25, tol. 100, luz 1)</Text>
+          <Text style={styles.resetText}>Przywróć domyślne (50 × 24, zaprawa 1, tol. 100, luz 1)</Text>
         </Pressable>
       </KeyboardAwareScrollView>
       <KeyboardStickyView offset={{ opened: bottomChrome }}>
@@ -114,6 +139,7 @@ const useStyles = makeStyles((c) => ({
   content: { padding: 16, gap: 16 },
   row: { flexDirection: "row", gap: 12 },
   label: { fontFamily: fonts.mono, fontSize: 12, color: c.onSurface },
+  hintText: { fontFamily: fonts.mono, fontSize: 11, color: c.muted, marginTop: -8 },
   info: { borderWidth: 2, borderColor: c.border, padding: 12, backgroundColor: c.surfaceSecondary },
   reset: { minHeight: 48, justifyContent: "center" },
   resetText: { fontFamily: fonts.mono, fontSize: 12, color: c.muted, textDecorationLine: "underline" },
