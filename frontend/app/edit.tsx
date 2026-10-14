@@ -1,5 +1,5 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
@@ -19,6 +19,7 @@ export default function EditScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const d = getDraft();
   const [name, setName] = useState(d.name);
   const [length, setLength] = useState(toStr(d.length));
@@ -48,7 +49,8 @@ export default function EditScreen() {
         .map((o) => ({ x: toNum(o.x), y: toNum(o.y), width: toNum(o.width), height: toNum(o.height) }))
         .filter((o) => o.width > 0 && o.height > 0),
     });
-    router.push("/result");
+    if (from === "result") router.back();
+    else router.replace("/result");
   };
 
   return (

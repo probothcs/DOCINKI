@@ -7,12 +7,22 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/api";
-import { calculate, normalizeSettings } from "@/src/calc";
-import { ResultView } from "@/src/components/ResultView";
+import { calculate, mergeGroups, normalizeSettings } from "@/src/calc";
+import { AddWallActions } from "@/src/components/AddWallActions";
+import { CutGroupsList, ResultView } from "@/src/components/ResultView";
 import { useToast } from "@/src/components/toast";
 import { Button } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
-import { getDraft, setDraft, useSettings } from "@/src/store";
+import {
+  addDraft,
+  Draft,
+  isValidDraft,
+  removeDraft,
+  setEditIndex,
+  startNewBatch,
+  useDrafts,
+  useSettings,
+} from "@/src/store";
 import { makeStyles, useTheme } from "@/src/theme";
 
 export default function ResultScreen() {
@@ -27,8 +37,27 @@ export default function ResultScreen() {
   const [saving, setSaving] = useState(false);
   const saved = useQuery({ queryKey: ["wall", id], queryFn: () => api.getWall(id!), enabled: !!id });
 
-  const draft = getDraft();
-  const draftResult = useMemo(() => (id ? null : calculate(draft, settings)), [id, draft, settings]);
+  const drafts = useDrafts();
+  const draftItems = useMemo(
+    () =>
+      id
+        ? []
+        : drafts
+            .map((d, i) => ({ d, i }))
+            .filter(({ d }) => isValidDraft(d))
+            .map(({ d, i }) => ({ d, i, r: calculate(d, settings) })),
+    [id, drafts, settings],
+  );
+  const total = useMemo(() => {
+    const rs = draftItems.map((x) => x.r);
+    return {
+      groups: mergeGroups(rs),
+      full: rs.reduce((n, r) => n + r.totalFull, 0),
+      cuts: rs.reduce((n, r) => n + r.totalCuts, 0),
+      top: rs.reduce((n, r) => n + r.topFull, 0),
+    };
+  }, [draftItems]);
+  const [adding, setAdding] = useState(false);
   // saved walls are recalculated with their own saved settings (keeps old records in the current format)
   const savedSettings = useMemo(() => (saved.data ? normalizeSettings(saved.data.settings) : null), [saved.data]);
   const savedResult = useMemo(
@@ -37,20 +66,39 @@ export default function ResultScreen() {
   );
 
   const save = async () => {
-    if (!draftResult) return;
+    if (!draftItems.length) return;
     setSaving(true);
     try {
-      const { notes: _n, ...wall } = draft;
-      const w = await api.saveWall({ ...wall, settings, result: draftResult });
+      const count = draftItems.length;
+      const word = count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? "ściany" : "ścian";
+      const project = count > 1 ? `Projekt ${new Date().toLocaleDateString("pl-PL")} (${count} ${word})` : "";
+      let lastId = "";
+      for (const { d, r } of draftItems) {
+        const { notes: _n, ...wall } = d;
+        const w = await api.saveWall({ ...wall, project, settings, result: r });
+        lastId = w.id;
+      }
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ["walls"] });
-      toast("Ściana zapisana");
-      router.replace({ pathname: "/result", params: { id: w.id } });
+      toast(count > 1 ? `Zapisano ${count} ${word}` : "Ściana zapisana");
+      if (draftItems.length > 1) router.replace("/(tabs)/history");
+      else router.replace({ pathname: "/result", params: { id: lastId } });
     } catch {
       toast("Nie udało się zapisać", "error");
     } finally {
       setSaving(false);
     }
+  };
+
+  const onAdd = (d: Draft) => {
+    setAdding(false);
+    addDraft(d);
+    router.push({ pathname: "/edit", params: { from: "result" } });
+  };
+
+  const editDraft = (i: number) => {
+    setEditIndex(i);
+    router.push({ pathname: "/edit", params: { from: "result" } });
   };
 
   const remove = async () => {
@@ -68,7 +116,7 @@ export default function ResultScreen() {
   const editAgain = () => {
     if (!saved.data) return;
     const { name, length, height, thickness, openings } = saved.data;
-    setDraft({ name, length, height, thickness, openings });
+    startNewBatch({ name, length, height, thickness, openings });
     router.push("/edit");
   };
 
@@ -91,8 +139,45 @@ export default function ResultScreen() {
           ) : (
             <Text testID="result-error" style={styles.err}>BŁĄD: nie znaleziono ściany</Text>
           )
+        ) : draftItems.length === 0 ? (
+          <Text testID="no-walls" style={styles.err}>Brak ścian — dodaj ścianę poniżej</Text>
         ) : (
-          draftResult && <ResultView wall={draft} result={draftResult} settings={settings} />
+          <View style={styles.gap}>
+            {draftItems.length > 1 && (
+              <View testID="project-total" style={styles.totalBox}>
+                <Text style={styles.totalTitle}>
+                  RAZEM: {draftItems.length} {draftItems.length >= 5 ? "ŚCIAN" : "ŚCIANY"}
+                </Text>
+                <Text testID="project-total-stats" style={styles.totalSub}>
+                  {total.full} pełnych bloczków · {total.cuts} docinek{total.top ? ` · ${total.top} cegieł na górę` : ""}
+                </Text>
+                <CutGroupsList groups={total.groups} blockLength={settings.blockLength} prefix="total-cut-group-" />
+              </View>
+            )}
+            {draftItems.map(({ d, r, i }, n) => (
+              <View key={i} style={styles.gap} testID={`draft-wall-${n}`}>
+                {draftItems.length > 1 && (
+                  <View style={styles.wallBar}>
+                    <Text style={styles.wallBarText}>
+                      ŚCIANA {n + 1}/{draftItems.length}
+                    </Text>
+                    <View style={styles.row}>
+                      <Pressable testID={`draft-edit-${n}`} hitSlop={8} style={styles.iconBtn} onPress={() => editDraft(i)}>
+                        <Ionicons name="create" size={24} color={colors.onSurfaceInverse} />
+                      </Pressable>
+                      <Pressable testID={`draft-remove-${n}`} hitSlop={8} style={styles.iconBtn} onPress={() => removeDraft(i)}>
+                        <Ionicons name="trash" size={24} color={colors.onSurfaceInverse} />
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+                <ResultView wall={d} result={r} settings={settings} />
+                {draftItems.length === 1 && (
+                  <Button testID="draft-edit-0" variant="outline" icon="create" label="Popraw wymiary" onPress={() => editDraft(i)} />
+                )}
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
       <View style={[styles.sticky, { paddingBottom: insets.bottom + 16 }]}>
@@ -109,7 +194,28 @@ export default function ResultScreen() {
             </View>
           )
         ) : (
-          <Button testID="save-wall-button" icon="save" label="Zapisz" loading={saving} onPress={save} />
+          <View style={styles.gap}>
+            {adding && <AddWallActions compact onReady={onAdd} />}
+            <View style={styles.row}>
+              <Button
+                testID="add-wall-button"
+                variant="outline"
+                icon={adding ? "close" : "add"}
+                label={adding ? "Anuluj" : "Dodaj ścianę"}
+                style={{ flex: 1 }}
+                onPress={() => setAdding((v) => !v)}
+              />
+              <Button
+                testID="save-wall-button"
+                icon="save"
+                label={draftItems.length > 1 ? "Zapisz wszystkie" : "Zapisz"}
+                loading={saving}
+                disabled={!draftItems.length}
+                style={{ flex: 1 }}
+                onPress={save}
+              />
+            </View>
+          </View>
         )}
       </View>
     </View>
@@ -132,5 +238,20 @@ const useStyles = makeStyles((c) => ({
   content: { padding: 16 },
   err: { fontFamily: fonts.mono, color: c.error },
   row: { flexDirection: "row", gap: 12 },
+  gap: { gap: 16 },
+  totalBox: { borderWidth: 2, borderColor: c.border, padding: 12, gap: 8, backgroundColor: c.brandTertiary },
+  totalTitle: { fontFamily: fonts.display, fontSize: 24, color: c.onBrandTertiary },
+  totalSub: { fontFamily: fonts.mono, fontSize: 13, color: c.onBrandTertiary },
+  wallBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: c.surfaceInverse,
+    paddingLeft: 12,
+    minHeight: 52,
+    marginTop: 8,
+  },
+  wallBarText: { fontFamily: fonts.display, fontSize: 18, color: c.onSurfaceInverse },
+  iconBtn: { width: 52, height: 52, alignItems: "center", justifyContent: "center" },
   sticky: { paddingHorizontal: 16, paddingTop: 12, backgroundColor: c.surface, borderTopWidth: 2, borderTopColor: c.border },
 }));

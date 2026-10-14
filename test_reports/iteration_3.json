@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 3 — Multi-wall batch, diagram labels and 'z bloczka' source all PASS. Backend: 13/13 pytest cases pass (added TestWallProjectField: POST /api/walls accepts optional 'project' field and persists it via GET; default empty string when omitted; aliased _id never leaks). Frontend (390x844): (1) Manual 344×266 wall with notches (0,259,17,7) and (327,259,17,7) → ALL 6 required cut-group testIDs visible: cut-group-17x7, cut-group-32x14, cut-group-26x14, cut-group-43, cut-group-18, cut-group-25; subtitle text 'z bloczka 50×24' appears 6 times — every cut is sourced from the 50×24 big block. (2) WallDiagram: 19 diagram-cut-{course}-{i} testIDs rendered including top-course corners diagram-cut-11-0 and diagram-cut-11-8 (17×7 notch pieces) AND the hidden 18 cm cuts on even rows (diagram-cut-10-7, diagram-cut-8-7 …); labels visible: '17×7', '32×14', '26×14', '25', '18', '43'. ScrollView horizontal applied for wide walls (MIN_SCALE=1.6). (3) Multi-wall flow: on result page add-wall-button → add-manual-button → edit screen → fill 320×301 → calculate-button → navigates BACK to result showing both draft-wall-0 & draft-wall-1 and the project-total box; total-cut-group-19 reads 'z bloczka 50×24 × 6' (count 6 as expected). draft-edit-1 opens edit and returns, draft-remove-1 removes wall and project-total disappears (only draft-wall-0 remains). (4) Save: with 2 walls, save-wall-button label is 'ZAPISZ WSZYSTKIE' → navigates to Historia; both walls appear named 'Ściana' with 'Projekt 14.10.2026 (2 ścian)' subtitle. With 1 wall label is 'ZAPISZ' → navigates to /result?id=... showing stored result (verified via result-wall-dims visible). All APIs returned 200. No react-native issues, no deprecated packages encountered.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "No action items. All requested multi-wall / diagram-label / 'z bloczka' / project-save features verified end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "server.py Wall model: new optional 'project' field (default '') is correctly persisted and returned; by_alias handling continues to hide Mongo _id.",
+    "calc.ts: in segmentPieces every short piece (len < b) OR piece with explicit h (notch/top-cut) is marked isCut and attributed to 'from = blockHeight' (50×24) — matches spec 'every cut comes from the big block'. Only full top-course bricks keep from = plan.t (low brick 9/14/19).",
+    "WallDiagram.tsx: cut labels now visible (fontSize 9, mono) and MIN_SCALE=1.6 forces horizontal scroll on long walls so every narrow 17 / 18 / 25 piece has room for its label.",
+    "server.py still uses deprecated @app.on_event('shutdown') — unchanged from iteration 1 (not blocking)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Backend pytest TestWallProjectField creates+deletes TEST_W1 / TEST_W2 / TEST_NOPROJ walls. Frontend tests created 2 project walls + 1 single wall and cleaned them up via UI delete + API DELETE. Pre-existing TEST_DEBUG, TEST_WALL_F1-14402 and 'T' walls from earlier iterations remain in DB.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Multi-wall batching lives in /app/frontend/src/store.ts (drafts[] with editIndex). Save flow in /app/frontend/app/result.tsx: >1 draft → sets project='Projekt {date} ({n} ścian)' and router.replace('/(tabs)/history'); ==1 draft → router.replace('/result?id='). Each wall is POSTed separately. Diagram testIDs: diagram-cut-{courseIndex}-{segmentFlatIndex} (course is 1-based). WallDiagram scrolls horizontally when innerW > container width (MIN_SCALE=1.6 px/cm). project-total box only renders when draftItems.length > 1."
+}

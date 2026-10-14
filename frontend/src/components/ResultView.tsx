@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import type { CalcResult, Settings, WallInput } from "../calc";
+import type { CalcResult, CutGroup, Settings, WallInput } from "../calc";
 import { cutLabel, fmt } from "../calc";
 import { fonts } from "../fonts";
 import { makeStyles } from "../theme";
@@ -59,17 +59,7 @@ export function ResultView({ wall, result, settings }: { wall: WallInput; result
         </View>
       ) : (
         <View style={styles.table}>
-          {result.cutGroups.map((g) => (
-            <View key={`${g.len}|${g.h}|${g.from}`} style={styles.groupRow} testID={`cut-group-${g.h !== null ? `${g.len}x${g.h}` : g.len}`}>
-              <View>
-                <Text style={styles.groupLen}>{cutLabel(g)} cm</Text>
-                <Text style={styles.courseSub}>
-                  {g.h !== null ? "dł. × wys. · " : ""}z cegły {fmt(g.from)}
-                </Text>
-              </View>
-              <Text style={styles.groupCount}>× {g.count}</Text>
-            </View>
-          ))}
+          <CutGroupsList groups={result.cutGroups} blockLength={settings.blockLength} prefix="cut-group-" />
         </View>
       )}
 
@@ -93,6 +83,25 @@ export function ResultView({ wall, result, settings }: { wall: WallInput; result
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+export function CutGroupsList({ groups, blockLength, prefix }: { groups: CutGroup[]; blockLength: number; prefix: string }) {
+  const styles = useStyles();
+  return (
+    <View style={styles.listBg}>
+      {groups.map((g) => (
+        <View key={`${g.len}|${g.h}|${g.from}`} style={styles.groupRow} testID={`${prefix}${g.h !== null ? `${g.len}x${g.h}` : g.len}`}>
+          <View>
+            <Text style={styles.groupLen}>{cutLabel(g)} cm</Text>
+            <Text style={styles.courseSub}>
+              {g.h !== null ? "dł. × wys. · " : ""}z bloczka {fmt(blockLength)}×{fmt(g.from)}
+            </Text>
+          </View>
+          <Text style={styles.groupCount}>× {g.count}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -127,6 +136,7 @@ const useStyles = makeStyles((c) => ({
   okBox: { backgroundColor: c.success, padding: 16, borderWidth: 2, borderColor: c.border },
   okText: { fontFamily: fonts.display, fontSize: 16, color: c.onSuccess },
   table: { borderWidth: 2, borderColor: c.border },
+  listBg: { backgroundColor: c.surface },
   groupRow: {
     flexDirection: "row",
     justifyContent: "space-between",

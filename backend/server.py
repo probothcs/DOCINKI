@@ -56,6 +56,7 @@ class WallDims(BaseModel):
     height: float
     thickness: float = 14
     openings: List[Opening] = []
+    project: str = ""
 
 
 class WallCreate(WallDims):

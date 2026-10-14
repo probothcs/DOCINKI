@@ -161,6 +161,63 @@ class TestWallsCRUD:
         assert r.status_code == 404
 
 
+# ---------------- Multi-wall project (optional project field on POST /api/walls) ----------------
+class TestWallProjectField:
+    created_ids = []
+
+    def _payload(self, name, project):
+        return {
+            "name": name,
+            "length": 320,
+            "height": 301,
+            "thickness": 14,
+            "openings": [],
+            "project": project,
+            "settings": {
+                "blockLength": 50, "blockHeight": 24, "mortar": 1,
+                "minModule": 24.4, "maxModule": 25.1,
+                "topBricks": [9, 14, 19], "tolerance100": 100,
+                "luz": 1, "minPiece": 10, "firstCourseHalf": False,
+            },
+            "result": {
+                "module": 50, "courseCount": 12, "courseHeight": 25.1,
+                "stackHeight": 301.2, "topBrick": None, "topIsCut": False,
+                "heightWarning": False, "courses": [],
+                "totalFull": 72, "topFull": 0, "totalCuts": 18, "cutGroups": [],
+            },
+        }
+
+    def test_01_create_with_project_field(self, api_client):
+        proj = "TEST_PROJEKT_MULTI"
+        for name in ("TEST_W1", "TEST_W2"):
+            r = api_client.post(f"{BASE_URL}/api/walls", json=self._payload(name, proj))
+            assert r.status_code == 200, r.text
+            data = r.json()
+            assert data.get("project") == proj, f"project missing on response: {data}"
+            assert "_id" not in data
+            TestWallProjectField.created_ids.append(data["id"])
+        assert len(TestWallProjectField.created_ids) == 2
+
+    def test_02_get_persists_project(self, api_client):
+        for wid in TestWallProjectField.created_ids:
+            r = api_client.get(f"{BASE_URL}/api/walls/{wid}")
+            assert r.status_code == 200
+            assert r.json().get("project") == "TEST_PROJEKT_MULTI"
+
+    def test_03_create_without_project_defaults_empty(self, api_client):
+        p = self._payload("TEST_NOPROJ", "")
+        del p["project"]
+        r = api_client.post(f"{BASE_URL}/api/walls", json=p)
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("project", "") == ""
+        TestWallProjectField.created_ids.append(data["id"])
+
+    def test_99_cleanup(self, api_client):
+        for wid in TestWallProjectField.created_ids:
+            api_client.delete(f"{BASE_URL}/api/walls/{wid}")
+
+
 # ---------------- Analyze (Gemini vision) ----------------
 class TestAnalyzeA14309:
     def test_analyze_a14309(self, api_client, jpeg_a14309):

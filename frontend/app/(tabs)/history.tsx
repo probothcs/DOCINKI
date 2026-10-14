@@ -52,6 +52,7 @@ export default function HistoryScreen() {
               <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString("pl-PL")}</Text>
             </View>
             <Text style={styles.cardSub}>
+              {item.project ? `${item.project} · ` : ""}
               {fmt(item.length)} × {fmt(item.height)} × {fmt(item.thickness)} cm
             </Text>
             <Text style={styles.cardSub}>

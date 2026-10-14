@@ -74,11 +74,6 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 
 export const fmt = (n: number) => r1(n).toLocaleString("pl-PL", { maximumFractionDigits: 1 });
 
-function sourceBrick(h: number, s: Settings) {
-  const all = [s.blockHeight, ...s.topBricks].sort((a, z) => a - z);
-  return all.find((x) => x >= h - EPS) ?? s.blockHeight;
-}
-
 type HeightPlan = { n: number; m: number; t: number; topIsCut: boolean; warning: boolean };
 
 // Pick course count n and course height m from the table range (e.g. 24.4–25.1),
@@ -113,6 +108,7 @@ function segmentPieces(
   s0: Settings,
   h: number | null,
   from: number,
+  topCutH: number | null,
 ): Piece[] {
   const cuts: number[] = [];
   let k = Math.ceil((s - offset) / b - 1e-9);
@@ -136,12 +132,15 @@ function segmentPieces(
   let pos = s;
   return lens.map((len) => {
     const shortLen = len < b - EPS;
-    const isCut = shortLen || h !== null;
+    // in the top course every cut is taken from the big block, cut to the top brick height
+    const ph = h ?? (shortLen ? topCutH : null);
+    const isCut = shortLen || ph !== null;
     // the starting half block at the wall edge is always a fixed half (e.g. 25), no luz
     const isStartHalf = shortLen && pos < EPS && offset > 0 && Math.abs(len - half) < EPS;
-    // height-cut pieces (under notches) keep the exact drawing length
+    // height-cut pieces under notches keep the exact drawing length
     const cutLen = !isCut ? 0 : isStartHalf ? r1(half) : h !== null ? r1(len) : r1(Math.max(len - s0.luz, 0));
-    const piece: Piece = { start: pos, len: r1(len), isCut, cutLen, h, from: h !== null ? sourceBrick(h, s0) : from };
+    // every cut comes from the big block (e.g. 50×24); only full top pieces are the low finishing brick
+    const piece: Piece = { start: pos, len: r1(len), isCut, cutLen, h: ph, from: isCut ? s0.blockHeight : from };
     pos += len;
     return piece;
   });
@@ -202,7 +201,8 @@ export function calculate(w: WallInput, settings: Settings): CalcResult {
     const offset = startsHalf ? s.blockLength / 2 : 0;
     const rowCutH = row.isTop && plan.topIsCut ? plan.t : null;
     const from = row.isTop && !plan.topIsCut ? plan.t : s.blockHeight;
-    const segments = rowRuns(w, row, s, rowCutH).map((r) => segmentPieces(r.s, r.e, offset, b, s, r.h, from));
+    const topCutH = row.isTop ? row.brickH : null;
+    const segments = rowRuns(w, row, s, rowCutH).map((r) => segmentPieces(r.s, r.e, offset, b, s, r.h, from, topCutH));
     const all = segments.flat();
     return {
       index: i + 1,
@@ -226,7 +226,7 @@ export function calculate(w: WallInput, settings: Settings): CalcResult {
       else map.set(key, { len: p.cutLen, h: p.h, from: p.from, count: 1 });
     }),
   );
-  const cutGroups = [...map.values()].sort((a, z) => z.from - a.from || z.len - a.len);
+  const cutGroups = [...map.values()].sort((a, z) => (a.h ?? 999) - (z.h ?? 999) || z.len - a.len);
 
   return {
     module: r1(b),
@@ -242,6 +242,19 @@ export function calculate(w: WallInput, settings: Settings): CalcResult {
     totalCuts: courses.reduce((n, c) => n + c.cuts.length, 0),
     cutGroups,
   };
+}
+
+export function mergeGroups(results: CalcResult[]): CutGroup[] {
+  const map = new Map<string, CutGroup>();
+  results.forEach((r) =>
+    r.cutGroups.forEach((g) => {
+      const key = `${g.len}|${g.h}|${g.from}`;
+      const cur = map.get(key);
+      if (cur) cur.count += g.count;
+      else map.set(key, { ...g });
+    }),
+  );
+  return [...map.values()].sort((a, z) => (a.h ?? 999) - (z.h ?? 999) || z.len - a.len);
 }
 
 export const cutLabel = (p: { len?: number; cutLen?: number; h: number | null }) => {

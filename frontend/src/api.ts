@@ -11,7 +11,7 @@ export type AnalyzeResult = {
   notes: string;
 };
 
-export type SavedWall = WallInput & { id: string; created_at: string; settings: Settings; result: CalcResult };
+export type SavedWall = WallInput & { id: string; created_at: string; project?: string; settings: Settings; result: CalcResult };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -30,7 +30,7 @@ export const api = {
     req<AnalyzeResult>("/analyze", { method: "POST", body: JSON.stringify({ image_base64 }) }),
   listWalls: () => req<SavedWall[]>("/walls"),
   getWall: (id: string) => req<SavedWall>(`/walls/${id}`),
-  saveWall: (w: WallInput & { settings: Settings; result: CalcResult }) =>
+  saveWall: (w: WallInput & { project?: string; settings: Settings; result: CalcResult }) =>
     req<SavedWall>("/walls", { method: "POST", body: JSON.stringify(w) }),
   deleteWall: (id: string) => req<{ ok: boolean }>(`/walls/${id}`, { method: "DELETE" }),
 };
