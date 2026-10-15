@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 5 fully validates the new automatic top-finish variants, kimlaga toggle, allow-brick toggle, swap-dims, saved height-tables and backend persistence of topVariant/kimlaga. Backend pytest: test_walls_variant.py (6/6 PASS) and TestAnalyzeA14309 (2/2 PASS). Analyze endpoint returns the new `kimlaga` boolean (verified via small JPEG → `kimlaga: True`). Frontend (mobile viewport 390x844, Expo web preview): (1) 205×268 + kimlaga ON → result-lay-height = 'MURUJ NA WYMIAR 268 cm · warstwy z zapisanej tabeli · kimlaga 21 + 10 × 24,7'; top-variant-0-exact chip is selected with 'NAJMNIEJ CIĘĆ'; diagram gutter shows 21, 45,2, 69,9 … 268 (table values exactly); course list contains KIM row with 3 pełnych + 2 docinek (z kimlagi 50×21); diagram-length '← 205 cm →' and diagram-height '↕ 268 cm' present. (2) 300×266 kimlaga OFF, openings (0,259,17,7) + (283,259,17,7) → best variant top-variant-0-brick-14 (12 cięć, MURUJ NA 251) marked NAJMNIEJ CIĘĆ; clicking top-variant-0-half recalculates (stat-cuts 12→16, result-height-plan now reads 'Wysokość: 10 × 25,3 + zaprawa 1 + połówka bloczka 12 = 266 cm'); diagram-opening-0 + diagram-opening-1 render. (3) edit-allow-brick toggled OFF → only exact/half/cut chips remain, no brick chip (verified: ['top-variant-0-exact','top-variant-0-half','top-variant-0-cut-15']). (4) edit-swap-dims swaps 300↔266 instantly. (5) Settings page exposes all required testIDs (settings-kimlaga-height, settings-height-table-0/1/2, settings-default-kimlaga, settings-default-allow-brick, settings-save-button); save shows 'Ustawienia zapisane' toast. (6) Two-wall project (205×268 kimlaga + 300×266) → project-total renders total-kimlaga line 'Kimlaga: 3 pełnych + 2 docinek' plus aggregated cut groups with 'Ś1/Ś2' location labels; save-wall-button navigates to Historia with project card 'Projekt 15.10.2026 · 2 ściany · 32 docinek'. (7) project-open-0 reopens the saved batch → draft-wall-0 keeps kimlaga + chosen variant (top-variant-0-exact NAJMNIEJ CIĘĆ, Kimlaga 21 + 10 × 24,7). No React Native/Expo issues or deprecated packages detected; no red screens, no console errors. Everything in Polish as required.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_walls_variant.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "calc.ts calculate() enumerates every planVariants outcome, builds each, then sorts by (cutCount, KIND_ORDER, t). Clean and deterministic — tie-break (exact → brick → half → cut) matches the UI's 'NAJMNIEJ CIĘĆ' labelling.",
+    "calc.ts tableFit() correctly ties a saved height-table to the current lay height (±0.3 cm) and to the kimlaga state (kimTable iff K0>0). The 205×268 flow confirms the gutter values come straight from heightTables[0].",
+    "edit.tsx on calc() sets topVariant=undefined so a dimension change always re-picks the best variant — matches the spec (user chooses on result screen).",
+    "server.py WallDims now accepts topVariant/kimlaga/allowBrick (plus legacy topMode) — all three persisted & echoed on GET. ObjectId still excluded (`_id` never leaked). Good.",
+    "AnalyzeResponse exposes `kimlaga: bool` with sensible default False; parser is defensive against missing fields.",
+    "No files >700 lines in /app/frontend/src (calc.ts is the largest at ~430)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (14/14 pytest tests passing, analyze+kimlaga verified)", "frontend": "100% of requested flows (7/7)"},
+  "seed_data_creation": "Created 2 test walls under 'Projekt 15.10.2026' during multi-wall flow (one kimlaga 205×268 + one 300×266). Pytest cleans up its own TEST_* walls.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All iteration-5 features verified. Variant chips use data-testid pattern 'top-variant-{wallIdx}-{kind}[-{t}]' (e.g. top-variant-0-brick-14, top-variant-1-cut-15, top-variant-0-exact, top-variant-0-half). History cards use project-card-0/project-open-0/project-rename-0/project-delete-0 (NOT history-item-*). Settings save button is 'settings-save-button'. result-lay-height holds the big 'MURUJ NA WYMIAR {X} cm' box plus the 'warstwy z zapisanej tabeli' subtitle when calc.fromTable=true. total-kimlaga is rendered inside project-total only when at least one wall has kimlaga.",
+  "rca_of_issue": "N/A — no bugs detected this iteration."
+}

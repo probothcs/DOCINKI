@@ -36,7 +36,7 @@ export function useSettings() {
 }
 
 // Draft walls passed from Nowa -> Edytuj -> Wynik (several walls can be calculated together)
-export type Draft = WallInput & { notes?: string; savedId?: string };
+export type Draft = WallInput & { notes?: string; savedId?: string; photo_path?: string; failed?: boolean };
 export const EMPTY_DRAFT: Draft = { name: "", length: 0, height: 0, thickness: 14, openings: [] };
 let drafts: Draft[] = [];
 let editIndex = 0;
@@ -74,6 +74,18 @@ export const startNewBatch = (d: Draft) => {
 export const addDraft = (d: Draft) => {
   editIndex = drafts.length;
   setDrafts([...drafts, d]);
+};
+export const addDrafts = (ds: Draft[]) => {
+  editIndex = drafts.length;
+  setDrafts([...drafts, ...ds]);
+};
+export const setBatchProject = (p: string) => {
+  batchProject = p;
+};
+export const updateDraft = (i: number, patch: Partial<Draft>) => {
+  const next = [...drafts];
+  next[i] = { ...next[i], ...patch };
+  setDrafts(next);
 };
 export const removeDraft = (i: number) => {
   const id = drafts[i]?.savedId;

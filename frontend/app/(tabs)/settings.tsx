@@ -4,6 +4,7 @@ import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboa
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DEFAULT_SETTINGS, fmt, Settings } from "@/src/calc";
+import { KimlagaToggle } from "@/src/components/KimlagaToggle";
 import { useToast } from "@/src/components/toast";
 import { Button, Field, toNum, toStr } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
@@ -18,9 +19,13 @@ const toForm = (v: Settings) => ({
   minModule: toStr(v.minModule),
   maxModule: toStr(v.maxModule),
   topBricks: v.topBricks.join(", "),
+  topBrickLength: toStr(v.topBrickLength),
+  topSpare: toStr(v.topSpare) || "0",
   tolerance100: toStr(v.tolerance100),
   luz: toStr(v.luz) || "0",
   minPiece: toStr(v.minPiece) || "0",
+  kimlagaHeight: toStr(v.kimlagaHeight),
+  tables: [0, 1, 2].map((i) => (v.heightTables[i] ?? []).map((n) => fmt(n)).join("; ")),
 });
 
 export default function SettingsScreen() {
@@ -30,12 +35,17 @@ export default function SettingsScreen() {
   const toast = useToast();
   const s = useSettings();
   const [f, setF] = useState(toForm(s));
+  const [kimlaga, setKimlaga] = useState(s.defaultKimlaga);
+  const [allowBrick, setAllowBrick] = useState(s.defaultAllowBrick);
 
   useEffect(() => {
     setF(toForm(s));
+    setKimlaga(s.defaultKimlaga);
+    setAllowBrick(s.defaultAllowBrick);
   }, [s]);
 
-  const set = (k: keyof typeof f) => (t: string) => setF((p) => ({ ...p, [k]: t }));
+  const set = (k: Exclude<keyof typeof f, "tables">) => (t: string) => setF((p) => ({ ...p, [k]: t }));
+  const setTable = (i: number) => (t: string) => setF((p) => ({ ...p, tables: p.tables.map((x, j) => (j === i ? t : x)) }));
   const module = (toNum(f.blockLength) * toNum(f.tolerance100)) / 100;
 
   const save = async () => {
@@ -49,10 +59,23 @@ export default function SettingsScreen() {
         .split(/[,;\s]+/)
         .map(toNum)
         .filter((n) => n > 0),
+      topBrickLength: toNum(f.topBrickLength) || 30,
+      topSpare: Math.max(0, Math.round(toNum(f.topSpare))),
       tolerance100: toNum(f.tolerance100),
       luz: toNum(f.luz),
       minPiece: toNum(f.minPiece),
       firstCourseHalf: false,
+      defaultKimlaga: kimlaga,
+      defaultAllowBrick: allowBrick,
+      kimlagaHeight: toNum(f.kimlagaHeight) || 21,
+      heightTables: f.tables
+        .map((t) =>
+          t
+            .split(/[;\s]+/)
+            .map(toNum)
+            .filter((n) => n > 0),
+        )
+        .filter((t) => t.length >= 2),
     };
     if (next.blockLength <= 0 || next.blockHeight <= 0 || next.tolerance100 <= 0) {
       toast("Wymiary bloczka i tolerancja muszą być > 0", "error");
@@ -90,6 +113,11 @@ export default function SettingsScreen() {
           onChangeText={set("topBricks")}
           hint="Oddziel przecinkiem, np. 9, 14, 19"
         />
+        <View style={styles.row}>
+          <Field testID="settings-top-brick-length" label="Długość cegły na górę" suffix="cm" value={f.topBrickLength} onChangeText={set("topBrickLength")} />
+          <Field testID="settings-top-spare" label="Zapasowe cegły" suffix="szt" value={f.topSpare} onChangeText={set("topSpare")} />
+        </View>
+        <Text style={styles.hintText}>Na górze bez docinek z cegły: (długość − docinki z bloczka) ÷ (cegła + spoina) + zapas</Text>
         <Field
           testID="settings-tolerance"
           label="Tolerancja: 100 cm bloczków ="
@@ -114,6 +142,25 @@ export default function SettingsScreen() {
           onChangeText={set("minPiece")}
           hint="Mniejszy kawałek na końcu → dzielę ostatnie dwa na pół"
         />
+        <Field
+          testID="settings-kimlaga-height"
+          label="Wysokość kimlagi (z zaprawą)"
+          suffix="cm"
+          value={f.kimlagaHeight}
+          onChangeText={set("kimlagaHeight")}
+          hint="Pierwsza warstwa z kimlagi 50×21, wyżej warstwy z tabeli"
+        />
+        <KimlagaToggle testID="settings-default-kimlaga" label="Nowa ściana: kimlaga na dole" value={kimlaga} onChange={setKimlaga} />
+        <Text style={styles.label}>TABELE WYSOKOŚCI WARSTW (Z KARTKI)</Text>
+        <Text style={styles.hintText}>
+          Wysokości kolejnych warstw oddzielone średnikiem. Tabela od {fmt(toNum(f.kimlagaHeight) || 21)} = z kimlagą, inna = od zwykłego. Gdy
+          koniec tabeli = wymiar muru, warstwy biorę dokładnie z tabeli.
+        </Text>
+        {f.tables.map((t, i) => (
+          <Field key={i} testID={`settings-height-table-${i}`} label={`Tabela ${i + 1}`} keyboardType="default" value={t} onChangeText={setTable(i)} />
+        ))}
+        <KimlagaToggle testID="settings-default-allow-brick" label="Nowa ściana: cegła na górę" value={allowBrick} onChange={setAllowBrick} />
+        <Text style={styles.hintText}>Góra ściany: aplikacja sama wybiera wariant z najmniejszą liczbą cięć</Text>
         <View testID="settings-bond-info" style={styles.info}>
           <Text style={styles.label}>
             Wiązanie: 1. warstwa od pełnego, co druga warstwa od połówki ({fmt(toNum(f.blockLength) / 2)} cm)

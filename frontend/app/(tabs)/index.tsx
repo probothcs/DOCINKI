@@ -10,7 +10,7 @@ import { fmt } from "@/src/calc";
 import { AddWallActions } from "@/src/components/AddWallActions";
 import { fonts } from "@/src/fonts";
 import { usesNativeTabs } from "@/src/navigation";
-import { Draft, startNewBatch } from "@/src/store";
+import { Draft, loadBatch } from "@/src/store";
 import { makeStyles, useTheme } from "@/src/theme";
 
 export default function NewScreen() {
@@ -21,9 +21,9 @@ export default function NewScreen() {
   const router = useRouter();
   const recent = useQuery({ queryKey: ["walls"], queryFn: api.listWalls });
 
-  const onReady = (d: Draft) => {
-    startNewBatch(d);
-    router.push("/edit");
+  const onReady = (ds: Draft[]) => {
+    loadBatch(ds, "");
+    router.push(ds.length > 1 ? "/review" : "/edit");
   };
 
   return (

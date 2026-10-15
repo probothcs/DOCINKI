@@ -26,3 +26,14 @@ User (Polish, prefab clay-block wall builder) uploads a photo of the architect's
 - P1: PDF/share of the cut list, mark courses as done on site
 - P1: multiple walls per drawing sheet (front + returns)
 - P2: block type presets (Ploegsteert sizes), top-course height cut option
+
+## Update (June 2026) — automatyczna góra, kimlaga, tabele wysokości
+- Automatyczny wybór wariantu góry (Na wymiar / Cegła 9/14/19 / Połówka 12 / Cięta X) z najmniejszą liczbą cięć, ręczna zmiana wariantu (chipy z liczbą cięć i "muruj na")
+- Przełącznik "Kimlaga na dole" (21 cm, docinki "z kimlagi 50×21") i "Cegła na górę" przy ścianie + domyślne w Ustawieniach
+- Zapisane tabele wysokości warstw (z kimlagą 21…268, bez kimlagi 24,1…266) — gdy koniec tabeli = wymiar muru, warstwy dokładnie z tabeli
+- Box "MURUJ NA WYMIAR", rysunek z wymiarami (wysokość, długość, wycięcia), kolumna wysokości warstw
+- AI rozpoznaje pasek KIM jako kimlagę (nie wycięcie) i ustawia wysokość w kierunku murowania; przycisk "Zamień długość ↔ wysokość"
+- Testy: iteration_5 — wszystko PASS
+## Backlog
+- P1: Kartka dla pilarza (PDF/WhatsApp), odhaczanie warstw
+- P2: Zapotrzebowanie materiału, więcej tabel wysokości

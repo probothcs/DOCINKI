@@ -1,50 +1,84 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { Linking, Text, View } from "react-native";
 
 import { api } from "../api";
 import { fonts } from "../fonts";
-import { Draft, EMPTY_DRAFT } from "../store";
+import { Draft, EMPTY_DRAFT, isValidDraft } from "../store";
 import { makeStyles, useTheme } from "../theme";
 import { useToast } from "./toast";
 import { Button } from "./ui";
 
-const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], base64: true, quality: 0.5 };
+const camOpts: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.8 };
+const galOpts: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ["images"],
+  quality: 0.8,
+  allowsMultipleSelection: true,
+  selectionLimit: 20,
+};
 
-// Photo (camera / gallery → AI) or manual entry; hands back a draft wall
-export function AddWallActions({ onReady, compact }: { onReady: (d: Draft) => void; compact?: boolean }) {
+// shrink the photo before sending (saves transfer and AI time)
+async function toBase64(asset: ImagePicker.ImagePickerAsset): Promise<string | null> {
+  try {
+    const ctx = ImageManipulator.manipulate(asset.uri);
+    if ((asset.width ?? 0) > 1600) ctx.resize({ width: 1600 });
+    const img = await ctx.renderAsync();
+    const res = await img.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+    return res.base64 ?? null;
+  } catch {
+    return asset.base64 ?? null;
+  }
+}
+
+// Photos (camera / gallery, many at once → AI one by one) or manual entry; hands back draft walls
+export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => void; compact?: boolean }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const toast = useToast();
-  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ i: number; n: number } | null>(null);
+  const busy = progress !== null;
   const [camBlocked, setCamBlocked] = useState(false);
   const [camAsk, setCamAsk] = useState(false);
 
-  const analyze = async (asset: ImagePicker.ImagePickerAsset) => {
-    if (!asset.base64) return;
-    setBusy(true);
-    try {
-      const r = await api.analyze(asset.base64);
-      onReady({
-        name: r.name,
-        length: r.length ?? 0,
-        height: r.height ?? 0,
-        thickness: r.thickness ?? 14,
-        openings: r.openings,
-        notes: r.notes,
-      });
-    } catch {
-      toast("Nie udało się odczytać rysunku. Wpisz wymiary ręcznie.", "error");
-      onReady({ ...EMPTY_DRAFT });
-    } finally {
-      setBusy(false);
+  const analyzeAll = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    const out: Draft[] = [];
+    let failed = 0;
+    for (let i = 0; i < assets.length; i++) {
+      setProgress({ i: i + 1, n: assets.length });
+      try {
+        const b64 = await toBase64(assets[i]);
+        if (!b64) throw new Error("no image");
+        const r = await api.analyze(b64);
+        const d: Draft = {
+          name: r.name,
+          length: r.length ?? 0,
+          height: r.height ?? 0,
+          thickness: r.thickness ?? 14,
+          openings: r.openings,
+          notes: r.notes,
+          photo_path: r.photo_path,
+          ...(r.kimlaga ? { kimlaga: true } : {}),
+        };
+        if (!isValidDraft(d)) {
+          d.failed = true;
+          failed++;
+        }
+        out.push(d);
+      } catch {
+        failed++;
+        out.push({ ...EMPTY_DRAFT, failed: true, notes: `Zdjęcie ${i + 1}: nie udało się odczytać — wpisz ręcznie` });
+      }
     }
+    setProgress(null);
+    if (failed) toast(`${failed} z ${assets.length} do wpisania ręcznie`, "error");
+    onReady(out);
   };
 
   const openCamera = async () => {
-    const res = await ImagePicker.launchCameraAsync(opts);
-    if (!res.canceled) analyze(res.assets[0]);
+    const res = await ImagePicker.launchCameraAsync(camOpts);
+    if (!res.canceled) analyzeAll(res.assets.slice(0, 1));
   };
 
   const takePhoto = async () => {
@@ -59,12 +93,12 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft) => vo
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (perm.granted) return openCamera();
     if (!perm.canAskAgain) setCamBlocked(true);
-    else toast("Bez aparatu możesz wybrać zdjęcie z galerii.", "error");
+    else toast("Bez aparatu możesz wybrać zdjęcia z galerii.", "error");
   };
 
   const pickGallery = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync(opts);
-    if (!res.canceled) analyze(res.assets[0]);
+    const res = await ImagePicker.launchImageLibraryAsync(galOpts);
+    if (!res.canceled && res.assets.length) analyzeAll(res.assets);
   };
 
   return (
@@ -72,20 +106,27 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft) => vo
       {busy ? (
         <View testID="analyzing-indicator" style={[styles.busy, compact && styles.busyCompact]}>
           <Ionicons name="scan" size={compact ? 28 : 48} color={colors.onSurfaceInverse} />
-          <Text style={styles.busyText}>ANALIZA AI TRWA...</Text>
+          <Text testID="analyze-progress" style={styles.busyText}>
+            {progress && progress.n > 1 ? `ODCZYTUJĘ ${progress.i} Z ${progress.n}…` : "ANALIZA AI TRWA..."}
+          </Text>
+          {progress && progress.n > 1 && (
+            <View style={styles.bar}>
+              <View style={[styles.barFill, { width: `${(progress.i / progress.n) * 100}%` }]} />
+            </View>
+          )}
           {!compact && <Text style={styles.busySub}>Odczytuję wymiary z rysunku</Text>}
         </View>
       ) : compact ? (
         <View style={styles.row}>
           <Button testID="add-scan-button" icon="camera" label="Foto" style={styles.flex} onPress={takePhoto} />
           <Button testID="add-gallery-button" variant="outline" icon="images" label="Galeria" style={styles.flex} onPress={pickGallery} />
-          <Button testID="add-manual-button" variant="outline" icon="create" label="Ręcznie" style={styles.flex} onPress={() => onReady({ ...EMPTY_DRAFT })} />
+          <Button testID="add-manual-button" variant="outline" icon="create" label="Ręcznie" style={styles.flex} onPress={() => onReady([{ ...EMPTY_DRAFT }])} />
         </View>
       ) : (
         <View style={styles.gap}>
           <Button testID="scan-drawing-button" big icon="camera" label="Skanuj rysunek" onPress={takePhoto} />
-          <Button testID="pick-gallery-button" variant="outline" icon="images" label="Z galerii" onPress={pickGallery} />
-          <Button testID="manual-entry-button" variant="outline" icon="create" label="Wprowadź ręcznie" onPress={() => onReady({ ...EMPTY_DRAFT })} />
+          <Button testID="pick-gallery-button" variant="outline" icon="images" label="Z galerii (kilka zdjęć)" onPress={pickGallery} />
+          <Button testID="manual-entry-button" variant="outline" icon="create" label="Wprowadź ręcznie" onPress={() => onReady([{ ...EMPTY_DRAFT }])} />
         </View>
       )}
       {camAsk && (
@@ -118,7 +159,9 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "center",
     gap: 8,
   },
-  busyCompact: { minHeight: 60, flexDirection: "row" },
+  busyCompact: { minHeight: 60, flexDirection: "row", flexWrap: "wrap", paddingVertical: 8 },
+  bar: { width: "80%", height: 16, borderWidth: 2, borderColor: c.onSurfaceInverse },
+  barFill: { height: "100%", backgroundColor: c.brandPrimary },
   busyText: { fontFamily: fonts.display, fontSize: 20, color: c.onSurfaceInverse },
   busySub: { fontFamily: fonts.mono, fontSize: 12, color: c.onSurfaceInverse },
   permBox: { borderWidth: 2, borderColor: c.border, padding: 16, gap: 12, backgroundColor: c.surfaceSecondary },

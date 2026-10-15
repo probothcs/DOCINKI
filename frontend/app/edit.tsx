@@ -5,10 +5,12 @@ import { Pressable, Text, View } from "react-native";
 import { KeyboardAwareScrollView, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PhotoThumb } from "@/src/components/PhotoThumb";
+import { KimlagaToggle } from "@/src/components/KimlagaToggle";
 import { useToast } from "@/src/components/toast";
 import { Button, Field, SectionTitle, toNum, toStr } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
-import { getDraft, setDraft } from "@/src/store";
+import { getDraft, setDraft, useSettings } from "@/src/store";
 import { makeStyles, useTheme } from "@/src/theme";
 
 type OpenStr = { x: string; y: string; width: string; height: string };
@@ -25,6 +27,9 @@ export default function EditScreen() {
   const [length, setLength] = useState(toStr(d.length));
   const [height, setHeight] = useState(toStr(d.height));
   const [thickness, setThickness] = useState(toStr(d.thickness));
+  const settings = useSettings();
+  const [kimlaga, setKimlaga] = useState(d.kimlaga ?? settings.defaultKimlaga);
+  const [allowBrick, setAllowBrick] = useState(d.allowBrick ?? settings.defaultAllowBrick);
   const [openings, setOpenings] = useState<OpenStr[]>(
     d.openings.map((o) => ({ x: toStr(o.x) || "0", y: toStr(o.y) || "0", width: toStr(o.width), height: toStr(o.height) })),
   );
@@ -45,11 +50,16 @@ export default function EditScreen() {
       length: L,
       height: H,
       thickness: toNum(thickness),
+      failed: false,
+      kimlaga,
+      allowBrick,
+      // dimensions changed: let the app pick the top variant with the fewest cuts again
+      topVariant: undefined,
       openings: openings
         .map((o) => ({ x: toNum(o.x), y: toNum(o.y), width: toNum(o.width), height: toNum(o.height) }))
         .filter((o) => o.width > 0 && o.height > 0),
     });
-    if (from === "result") router.back();
+    if (from === "result" || from === "review") router.back();
     else router.replace("/result");
   };
 
@@ -62,6 +72,12 @@ export default function EditScreen() {
         <Text style={styles.title}>WYMIARY ŚCIANY</Text>
       </View>
       <KeyboardAwareScrollView bottomOffset={96} contentContainerStyle={styles.content}>
+        {!!d.photo_path && (
+          <View style={styles.photoRow}>
+            <PhotoThumb path={d.photo_path} size={96} testID="edit-photo" />
+            <Text style={styles.hint}>Dotknij zdjęcie, aby porównać z wymiarami</Text>
+          </View>
+        )}
         {!!d.notes && (
           <View testID="ai-notes" style={styles.notes}>
             <Text style={styles.notesTitle}>ODCZYT AI — SPRAWDŹ</Text>
@@ -73,7 +89,26 @@ export default function EditScreen() {
           <Field testID="edit-length" label="Długość" suffix="cm" value={length} onChangeText={setLength} />
           <Field testID="edit-height" label="Wysokość" suffix="cm" value={height} onChangeText={setHeight} />
         </View>
+        <Button
+          testID="edit-swap-dims"
+          variant="outline"
+          icon="swap-vertical"
+          label="Zamień długość ↔ wysokość"
+          onPress={() => {
+            setLength(height);
+            setHeight(length);
+          }}
+        />
+        <Text style={styles.hint}>Wysokość = kierunek murowania (od kimlagi w górę), np. 268</Text>
         <Field testID="edit-thickness" label="Grubość" suffix="cm" value={thickness} onChangeText={setThickness} />
+        <KimlagaToggle testID="edit-kimlaga" value={kimlaga} onChange={setKimlaga} />
+        <KimlagaToggle testID="edit-allow-brick" label="Cegła na górę (9 / 14 / 19)" value={allowBrick} onChange={setAllowBrick} />
+        <Text style={styles.hint}>
+          {kimlaga
+            ? `1. warstwa z kimlagi ${settings.kimlagaHeight} cm, wyżej warstwy z tabeli. `
+            : ""}
+          Góra (na wymiar / cegła / połówka / cięta) — wybiorę wariant z najmniejszą liczbą cięć
+        </Text>
 
         <SectionTitle>Otwory / wycięcia</SectionTitle>
         <Text style={styles.hint}>Wycięcie w górnym rogu: od lewej 0, od dołu 259, szer. 17, wys. 7 (ściana 266)</Text>
@@ -128,6 +163,7 @@ const useStyles = makeStyles((c) => ({
   content: { padding: 16, gap: 16 },
   row: { flexDirection: "row", gap: 12 },
   hint: { fontFamily: fonts.mono, fontSize: 11, color: c.muted, marginTop: -8 },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   notes: { backgroundColor: c.brandTertiary, borderWidth: 2, borderColor: c.border, padding: 12, gap: 4 },
   notesTitle: { fontFamily: fonts.display, fontSize: 14, color: c.onBrandTertiary },
   notesText: { fontFamily: fonts.mono, fontSize: 12, color: c.onBrandTertiary },

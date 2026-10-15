@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/api";
@@ -14,13 +14,15 @@ import { useToast } from "@/src/components/toast";
 import { Button } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
 import {
-  addDraft,
+  addDrafts,
   Draft,
   getBatchMeta,
   isValidDraft,
   loadBatch,
   removeDraft,
+  setBatchProject,
   setEditIndex,
+  updateDraft,
   useDrafts,
   useSettings,
 } from "@/src/store";
@@ -56,8 +58,23 @@ export default function ResultScreen() {
       full: rs.reduce((n, r) => n + r.totalFull, 0),
       cuts: rs.reduce((n, r) => n + r.totalCuts, 0),
       top: rs.reduce((n, r) => n + r.topFull, 0),
+      // finishing bricks needed on top, per brick height
+      bricks: Object.entries(
+        rs.reduce<Record<string, number>>((m, r) => {
+          if (r.topKind === "brick" && r.topBrick !== null && r.topFull) m[r.topBrick] = (m[r.topBrick] ?? 0) + r.topFull;
+          return m;
+        }, {}),
+      ),
+      halves: rs.reduce((n, r) => n + (r.halfTop ? r.topFull : 0), 0),
+      kimFull: rs.reduce((n, r) => n + r.kimFull, 0),
+      kimCuts: rs.reduce((n, r) => n + r.kimCuts, 0),
+      cutCount: rs.reduce((n, r) => n + r.cutCount, 0),
     };
   }, [draftItems]);
+  const [projectName, setProjectName] = useState(getBatchMeta().project);
+  const defaultName = draftItems[0]?.d.name
+    ? `${draftItems[0].d.name}${draftItems.length > 1 ? "…" : ""}`
+    : `Projekt ${new Date().toLocaleDateString("pl-PL")}`;
   const [adding, setAdding] = useState(add === "1");
   const [selected, setSelected] = useState<string | null>(null);
   const toggleSel = (k: string) => setSelected((cur) => (cur === k ? null : k));
@@ -82,22 +99,27 @@ export default function ResultScreen() {
       const count = draftItems.length;
       const word = count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? "ściany" : "ścian";
       const meta = getBatchMeta();
-      const base = meta.project.replace(/\s*\(\d+ ścian[y]?\)$/, "") || `Projekt ${new Date().toLocaleDateString("pl-PL")}`;
-      const project = count > 1 ? `${base} (${count} ${word})` : meta.project;
-      let lastId = "";
+      const project = projectName.trim() || defaultName;
+      setBatchProject(project);
       for (const { d, r } of draftItems) {
-        const { notes: _n, savedId: _s, ...wall } = d;
-        const w = await api.saveWall({ ...wall, project, settings, result: r });
-        lastId = w.id;
+        const { notes: _n, savedId: _s, failed: _f, ...wall } = d;
+        await api.saveWall({
+          ...wall,
+          kimlaga: d.kimlaga ?? settings.defaultKimlaga,
+          allowBrick: d.allowBrick ?? settings.defaultAllowBrick,
+          topVariant: r.variant,
+          project,
+          settings,
+          result: r,
+        });
       }
       // replace previously saved versions of these walls
       const old = [...draftItems.map((x) => x.d.savedId).filter((x): x is string => !!x), ...meta.pendingDeletes];
       await Promise.all(old.map((oid) => api.deleteWall(oid).catch(() => null)));
       if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await qc.invalidateQueries({ queryKey: ["walls"] });
-      toast(count > 1 ? `Zapisano ${count} ${word}` : "Ściana zapisana");
-      if (draftItems.length > 1) router.replace("/(tabs)/history");
-      else router.replace({ pathname: "/result", params: { id: lastId } });
+      toast(count > 1 ? `Zapisano projekt: ${count} ${word}` : "Projekt zapisany");
+      router.replace("/(tabs)/history");
     } catch {
       toast("Nie udało się zapisać", "error");
     } finally {
@@ -105,10 +127,11 @@ export default function ResultScreen() {
     }
   };
 
-  const onAdd = (d: Draft) => {
+  const onAdd = (ds: Draft[]) => {
     setAdding(false);
-    addDraft(d);
-    router.push({ pathname: "/edit", params: { from: "result" } });
+    addDrafts(ds);
+    if (ds.length > 1) router.push({ pathname: "/review", params: { from: "result" } });
+    else router.push({ pathname: "/edit", params: { from: "result" } });
   };
 
   const editDraft = (i: number) => {
@@ -130,8 +153,11 @@ export default function ResultScreen() {
 
   const editAgain = () => {
     if (!saved.data) return;
-    const { name, length, height, thickness, openings } = saved.data;
-    loadBatch([{ name, length, height, thickness, openings, savedId: saved.data.id }], saved.data.project ?? "");
+    const { name, length, height, thickness, openings, photo_path, topVariant, kimlaga, allowBrick } = saved.data;
+    loadBatch(
+      [{ name, length, height, thickness, openings, photo_path, topVariant, kimlaga: kimlaga ?? false, allowBrick: allowBrick ?? true, savedId: saved.data.id }],
+      saved.data.project ?? "",
+    );
     router.push("/edit");
   };
 
@@ -146,7 +172,18 @@ export default function ResultScreen() {
       } catch {}
     }
     loadBatch(
-      walls.map((w) => ({ name: w.name, length: w.length, height: w.height, thickness: w.thickness, openings: w.openings, savedId: w.id })),
+      walls.map((w) => ({
+        name: w.name,
+        length: w.length,
+        height: w.height,
+        thickness: w.thickness,
+        openings: w.openings,
+        savedId: w.id,
+        photo_path: w.photo_path,
+        topVariant: w.topVariant,
+        kimlaga: w.kimlaga ?? false,
+        allowBrick: w.allowBrick ?? true,
+      })),
       cur.project ?? "",
     );
     router.replace({ pathname: "/result", params: { add: "1" } });
@@ -167,7 +204,7 @@ export default function ResultScreen() {
           saved.isLoading ? (
             <ActivityIndicator color={colors.brandPrimary} />
           ) : saved.data && savedResult && savedSettings ? (
-            <ResultView wall={saved.data} result={savedResult} settings={savedSettings} selected={selected} onSelect={toggleSel} />
+            <ResultView wall={saved.data} result={savedResult} settings={savedSettings} selected={selected} onSelect={toggleSel} photo={saved.data.photo_path} />
           ) : (
             <Text testID="result-error" style={styles.err}>BŁĄD: nie znaleziono ściany</Text>
           )
@@ -175,18 +212,45 @@ export default function ResultScreen() {
           <Text testID="no-walls" style={styles.err}>Brak ścian — dodaj ścianę poniżej</Text>
         ) : (
           <View style={styles.gap}>
+            <View style={styles.nameBox}>
+              <Text style={styles.nameLabel}>NAZWA PROJEKTU</Text>
+              <TextInput
+                testID="project-name-input"
+                value={projectName}
+                onChangeText={setProjectName}
+                placeholder={defaultName}
+                placeholderTextColor={colors.muted}
+                style={styles.nameInput}
+              />
+            </View>
             {draftItems.length > 1 && (
               <View testID="project-total" style={styles.totalBox}>
                 <Text style={styles.totalTitle}>
                   RAZEM: {draftItems.length} {draftItems.length >= 5 ? "ŚCIAN" : "ŚCIANY"}
                 </Text>
                 <Text testID="project-total-stats" style={styles.totalSub}>
-                  {total.full} pełnych bloczków · {total.cuts} docinek{total.top ? ` · ${total.top} cegieł na górę` : ""}
+                  {total.full} pełnych bloczków · {total.cuts} docinek · razem {total.cutCount} cięć
                 </Text>
+                {total.kimFull + total.kimCuts > 0 && (
+                  <Text testID="total-kimlaga" style={styles.totalBricks}>
+                    Kimlaga: {total.kimFull} pełnych + {total.kimCuts} docinek
+                  </Text>
+                )}
+                {total.bricks.map(([h, n]) => (
+                  <Text key={h} testID={`total-bricks-${h}`} style={styles.totalBricks}>
+                    Cegły na górę: {n} × cegła {settings.topBrickLength}×{h}
+                  </Text>
+                ))}
+                {total.halves > 0 && (
+                  <Text testID="total-halves" style={styles.totalBricks}>
+                    Połówki na górę: {total.halves} × {settings.blockLength}×{settings.blockHeight / 2} (z {Math.ceil(total.halves / 2)} bloczków)
+                  </Text>
+                )}
                 <Text style={styles.totalSub}>Dotknij docinkę — podświetlę ją na rysunkach wszystkich ścian</Text>
                 <CutGroupsList
                   groups={total.groups}
                   blockLength={settings.blockLength}
+                  blockHeight={settings.blockHeight}
                   prefix="total-cut-group-"
                   selected={selected}
                   onSelect={toggleSel}
@@ -211,7 +275,16 @@ export default function ResultScreen() {
                     </View>
                   </View>
                 )}
-                <ResultView wall={d} result={r} settings={settings} selected={selected} onSelect={toggleSel} />
+                <ResultView
+                  wall={d}
+                  result={r}
+                  settings={settings}
+                  selected={selected}
+                  onSelect={toggleSel}
+                  photo={d.photo_path}
+                  index={n}
+                  onPickVariant={(k) => updateDraft(i, { topVariant: k })}
+                />
                 {draftItems.length === 1 && (
                   <Button testID="draft-edit-0" variant="outline" icon="create" label="Popraw wymiary" onPress={() => editDraft(i)} />
                 )}
@@ -251,7 +324,7 @@ export default function ResultScreen() {
               <Button
                 testID="save-wall-button"
                 icon="save"
-                label={draftItems.length > 1 ? "Zapisz wszystkie" : "Zapisz"}
+                label="Zapisz projekt"
                 loading={saving}
                 disabled={!draftItems.length}
                 style={{ flex: 1 }}
@@ -283,6 +356,19 @@ const useStyles = makeStyles((c) => ({
   row: { flexDirection: "row", gap: 12 },
   gap: { gap: 16 },
   totalBox: { borderWidth: 2, borderColor: c.border, padding: 12, gap: 8, backgroundColor: c.brandTertiary },
+  totalBricks: { fontFamily: fonts.display, fontSize: 16, color: c.onBrandTertiary },
+  nameBox: { gap: 4 },
+  nameLabel: { fontFamily: fonts.mono, fontSize: 12, color: c.onSurface },
+  nameInput: {
+    borderWidth: 2,
+    borderColor: c.border,
+    backgroundColor: c.surfaceSecondary,
+    minHeight: 56,
+    paddingHorizontal: 12,
+    fontFamily: fonts.mono,
+    fontSize: 18,
+    color: c.onSurface,
+  },
   totalTitle: { fontFamily: fonts.display, fontSize: 24, color: c.onBrandTertiary },
   totalSub: { fontFamily: fonts.mono, fontSize: 13, color: c.onBrandTertiary },
   wallBar: {
