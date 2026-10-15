@@ -1,0 +1,52 @@
+name: Publish phone web
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Install frontend
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Write published version
+        run: printf '{"sha":"%s","version":"1.0.0"}\n' "$GITHUB_SHA" > frontend/public/version.json
+
+      - name: Export web
+        working-directory: frontend
+        env:
+          EXPO_PUBLIC_GIT_SHA: ${{ github.sha }}
+          EXPO_BASE_URL: /DOCINKI
+        run: npx expo export --platform web
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

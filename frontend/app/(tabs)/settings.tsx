@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_SETTINGS, fmt, Settings } from "@/src/calc";
 import { KimlagaToggle } from "@/src/components/KimlagaToggle";
 import { useToast } from "@/src/components/toast";
+import { UpdateButton } from "@/src/components/UpdateButton";
 import { Button, Field, toNum, toStr } from "@/src/components/ui";
 import { fonts } from "@/src/fonts";
 import { usesNativeTabs } from "@/src/navigation";
@@ -97,6 +98,7 @@ export default function SettingsScreen() {
         <Text style={styles.title}>USTAWIENIA</Text>
       </View>
       <KeyboardAwareScrollView bottomOffset={96} contentContainerStyle={styles.content}>
+        <UpdateButton />
         <View style={styles.row}>
           <Field testID="settings-block-length" label="Długość bloczka" suffix="cm" value={f.blockLength} onChangeText={set("blockLength")} />
           <Field testID="settings-block-height" label="Wysokość cegły" suffix="cm" value={f.blockHeight} onChangeText={set("blockHeight")} />
