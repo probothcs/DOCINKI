@@ -7,7 +7,7 @@ import { checkForUpdate, planAppUpdate, publishedVersionUrl } from "./src/update
 const page = "https://probothcs.github.io/DOCINKI/";
 const local = "http://127.0.0.1:8081/";
 
-assert.equal(APP_VERSION, "0.0.1");
+assert.equal(APP_VERSION, "0.0.2");
 assert.equal(nextPublishedVersion("0.0.1", null), "0.0.1");
 assert.equal(nextPublishedVersion("0.0.1", "brak"), "0.0.1");
 assert.equal(nextPublishedVersion("0.0.1", "0.0.1"), "0.0.2");
