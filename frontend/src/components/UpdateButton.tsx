@@ -27,7 +27,7 @@ export function UpdateButton() {
       toast(result.message, result.kind === "toast" && result.error ? "error" : "ok");
       if (result.kind !== "reload") return;
       if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.location.replace(result.href);
+        window.setTimeout(() => window.location.replace(result.href), 1200);
         return;
       }
       await Linking.openURL(result.href);
