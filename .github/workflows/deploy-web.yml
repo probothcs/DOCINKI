@@ -33,12 +33,17 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Write published version
-        run: printf '{"sha":"%s","version":"1.0.0"}\n' "$GITHUB_SHA" > frontend/public/version.json
+        id: version
+        working-directory: frontend
+        run: |
+          VERSION=$(node --experimental-strip-types scripts/write-published-version.ts)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Export web
         working-directory: frontend
         env:
           EXPO_PUBLIC_GIT_SHA: ${{ github.sha }}
+          EXPO_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
           EXPO_BASE_URL: /DOCINKI
         run: npx expo export --platform web
 

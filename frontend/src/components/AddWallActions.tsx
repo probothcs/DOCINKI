@@ -4,6 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { Linking, Text, View } from "react-native";
 
+import { explainAnalyzeError, MISSING_DIMS } from "../analyze-error";
 import { api } from "../api";
 import { fonts } from "../fonts";
 import { Draft, EMPTY_DRAFT, isValidDraft } from "../store";
@@ -44,7 +45,7 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => 
 
   const analyzeAll = async (assets: ImagePicker.ImagePickerAsset[]) => {
     const out: Draft[] = [];
-    let failed = 0;
+    const reasons: string[] = [];
     for (let i = 0; i < assets.length; i++) {
       setProgress({ i: i + 1, n: assets.length });
       try {
@@ -63,16 +64,22 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => 
         };
         if (!isValidDraft(d)) {
           d.failed = true;
-          failed++;
+          d.notes = d.notes ? `${d.notes} ${MISSING_DIMS}` : MISSING_DIMS;
+          reasons.push(MISSING_DIMS);
         }
         out.push(d);
-      } catch {
-        failed++;
-        out.push({ ...EMPTY_DRAFT, failed: true, notes: `Zdjęcie ${i + 1}: nie udało się odczytać — wpisz ręcznie` });
+      } catch (error) {
+        const reason = explainAnalyzeError(error);
+        reasons.push(reason);
+        out.push({ ...EMPTY_DRAFT, failed: true, notes: `Zdjęcie ${i + 1}: ${reason}` });
       }
     }
     setProgress(null);
-    if (failed) toast(`${failed} z ${assets.length} do wpisania ręcznie`, "error");
+    if (reasons.length) {
+      const unique = [...new Set(reasons)];
+      const message = unique.length === 1 ? unique[0] : `${reasons.length} z ${assets.length} bez wymiarów. ${unique[0]}`;
+      toast(message, "error");
+    }
     onReady(out);
   };
 
