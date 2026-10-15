@@ -1,6 +1,7 @@
 import type { CalcResult, Opening, Settings, WallInput } from "./calc";
 
-const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
+const backend = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+const BASE = backend ? `${backend}/api` : "";
 
 export type AnalyzeResult = {
   name: string;
@@ -25,6 +26,7 @@ export type SavedWall = WallInput & {
 export const photoUrl = (path: string) => `${BASE}/files/${path}`;
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!BASE) throw new Error("Brak adresu serwera");
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },

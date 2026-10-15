@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
 import { fmt } from "@/src/calc";
 import { AddWallActions } from "@/src/components/AddWallActions";
+import { UpdateButton } from "@/src/components/UpdateButton";
 import { fonts } from "@/src/fonts";
 import { usesNativeTabs } from "@/src/navigation";
 import { Draft, loadBatch } from "@/src/store";
@@ -32,6 +33,10 @@ export default function NewScreen() {
         <Animated.View entering={FadeInDown.duration(300)}>
           <Text style={styles.brand}>DOCINKI PRO</Text>
           <Text style={styles.sub}>Zdjęcie rysunku → docinki na każdą warstwę. Po wyniku możesz dodać kolejne ściany.</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(40).duration(300)}>
+          <UpdateButton />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(80).duration(300)}>
