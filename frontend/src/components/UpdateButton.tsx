@@ -39,7 +39,7 @@ export function UpdateButton() {
   return (
     <>
       <Button testID="update-app-button" variant="outline" icon="refresh" label="Aktualizuj" loading={busy} onPress={onPress} />
-      <Text style={styles.hint}>Po wysłaniu zmian na GitHuba kliknij Aktualizuj.</Text>
+      <Text style={styles.hint}>Wyślij zmiany na GitHuba, potem kliknij Aktualizuj. Telefon otworzy tę samą wersję.</Text>
     </>
   );
 }

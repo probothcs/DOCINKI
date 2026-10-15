@@ -40,14 +40,24 @@ const offline = planAppUpdate({
 });
 assert.equal(offline.kind === "toast" && offline.error, true);
 
-const dev = planAppUpdate({
+const devWaiting = planAppUpdate({
   embeddedSha: "",
   publishedSha: null,
   githubSha: "new",
   href: local,
 });
-assert.equal(dev.kind, "reload");
-assert.equal(dev.kind === "reload" && dev.message, "Odświeżono");
+assert.equal(devWaiting.kind, "toast");
+assert.equal(devWaiting.kind === "toast" && devWaiting.error, true);
+
+const openGithub = planAppUpdate({
+  embeddedSha: "",
+  publishedSha: "abc",
+  githubSha: "abc",
+  href: local,
+});
+assert.equal(openGithub.kind, "reload");
+assert.equal(openGithub.kind === "reload" && openGithub.href, "https://probothcs.github.io/DOCINKI/?v=abc");
+assert.equal(openGithub.kind === "reload" && openGithub.message, "Otwieram wersję z GitHuba…");
 
 assert.equal(publishedVersionUrl(page), "https://probothcs.github.io/DOCINKI/version.json");
 assert.equal(publishedVersionUrl(local), "https://probothcs.github.io/DOCINKI/version.json");

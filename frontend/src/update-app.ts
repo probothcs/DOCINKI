@@ -56,7 +56,18 @@ export function planAppUpdate(input: {
     return { kind: "toast", message: "Masz już najnowszą wersję" };
   }
 
-  return { kind: "reload", href: bust(input.href), message: "Odświeżono" };
+  if (!published) {
+    return {
+      kind: "toast",
+      error: true,
+      message: github ? WAITING : "Nie udało się sprawdzić aktualizacji",
+    };
+  }
+  return {
+    kind: "reload",
+    href: withVersion(`${PUBLISHED_ORIGIN}${PUBLISHED_BASE}`, published),
+    message: "Otwieram wersję z GitHuba…",
+  };
 }
 
 export async function checkForUpdate(input: {
@@ -115,15 +126,4 @@ function withVersion(href: string, sha: string): string {
   url.searchParams.set("v", sha);
   url.hash = "";
   return url.toString();
-}
-
-function bust(href: string): string {
-  try {
-    const url = new URL(href);
-    url.searchParams.set("v", String(Date.now()));
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return href;
-  }
 }
