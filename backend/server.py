@@ -166,8 +166,24 @@ async def root():
     return {"message": "Docinki Pro API"}
 
 
+AI_KEY_MISSING = (
+    "Odczyt rysunku jest wyłączony: na serwerze nie ma klucza AI. "
+    "Wpisz długość i wysokość ręcznie — docinki policzą się same."
+)
+AI_READ_FAILED = (
+    "Nie udało się odczytać wymiarów z rysunku. "
+    "Wpisz długość i wysokość ręcznie — docinki policzą się same."
+)
+
+
+def emergent_key_ready(key: str) -> bool:
+    return bool(key) and key.startswith("sk-emergent-")
+
+
 @api_router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest):
+    if not emergent_key_ready(EMERGENT_LLM_KEY):
+        raise HTTPException(status_code=503, detail=AI_KEY_MISSING)
     b64 = req.image_base64.split(",", 1)[-1]
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"analyze-{uuid.uuid4()}", system_message=SYSTEM_PROMPT) \
         .with_model("gemini", "gemini-3-flash-preview")
@@ -184,7 +200,7 @@ async def analyze(req: AnalyzeRequest):
         data = parse_json(text)
     except Exception as e:
         logger.exception("analyze failed: %s | %s", e, text[:500])
-        raise HTTPException(status_code=502, detail="Nie udało się odczytać rysunku")
+        raise HTTPException(status_code=502, detail=AI_READ_FAILED)
 
     photo_path = await store_photo(b64)
 

@@ -80,7 +80,7 @@ export default function EditScreen() {
         )}
         {!!d.notes && (
           <View testID="ai-notes" style={styles.notes}>
-            <Text style={styles.notesTitle}>ODCZYT AI — SPRAWDŹ</Text>
+            <Text style={styles.notesTitle}>{d.failed ? "BEZ ODCZYTU WYMIARÓW" : "ODCZYT AI — SPRAWDŹ"}</Text>
             <Text style={styles.notesText}>{d.notes}</Text>
           </View>
         )}
