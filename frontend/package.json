@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "main": "expo-router/entry",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "scripts": {
     "preinstall": "./scripts/cmd-guard.js --preinstall",
     "start": "expo start",
@@ -46,7 +46,8 @@
     "react-native-screens": "4.26.2",
     "react-native-web": "0.21.2",
     "react-native-webview": "13.16.1",
-    "react-native-worklets": "0.10.1"
+    "react-native-worklets": "0.10.1",
+    "tesseract.js": "5.1.1"
   },
   "devDependencies": {
     "@types/react": "19.2.10",

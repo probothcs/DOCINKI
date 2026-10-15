@@ -6,6 +6,7 @@ import { Linking, Text, View } from "react-native";
 
 import { explainAnalyzeError, MISSING_DIMS } from "../analyze-error";
 import { api } from "../api";
+import { readDrawingPhoto } from "../read-drawing-photo";
 import { fonts } from "../fonts";
 import { Draft, EMPTY_DRAFT, isValidDraft } from "../store";
 import { makeStyles, useTheme } from "../theme";
@@ -49,8 +50,20 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => 
     for (let i = 0; i < assets.length; i++) {
       setProgress({ i: i + 1, n: assets.length });
       try {
+        const local = await readDrawingPhoto(assets[i].uri, assets[i].width ?? 0, assets[i].height ?? 0).catch(() => null);
+        if (local?.length && local.height && local.length !== local.height) {
+          out.push({
+            ...EMPTY_DRAFT,
+            name: local.name,
+            length: local.length,
+            height: local.height,
+            thickness: local.thickness ?? 14,
+            notes: local.notes,
+          });
+          continue;
+        }
         const b64 = await toBase64(assets[i]);
-        if (!b64) throw new Error("no image");
+        if (!b64) throw new Error(local?.notes || "no image");
         const r = await api.analyze(b64);
         const d: Draft = {
           name: r.name,
@@ -69,9 +82,22 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => 
         }
         out.push(d);
       } catch (error) {
-        const reason = explainAnalyzeError(error);
-        reasons.push(reason);
-        out.push({ ...EMPTY_DRAFT, failed: true, notes: `Zdjęcie ${i + 1}: ${reason}` });
+        if (local && (local.name || local.length || local.height)) {
+          reasons.push(local.notes);
+          out.push({
+            ...EMPTY_DRAFT,
+            name: local.name,
+            length: local.length ?? 0,
+            height: local.height ?? 0,
+            thickness: local.thickness ?? 14,
+            failed: !(local.length && local.height && local.length !== local.height),
+            notes: local.notes,
+          });
+        } else {
+          const reason = explainAnalyzeError(error);
+          reasons.push(reason);
+          out.push({ ...EMPTY_DRAFT, failed: true, notes: `Zdjęcie ${i + 1}: ${reason}` });
+        }
       }
     }
     setProgress(null);
@@ -114,7 +140,7 @@ export function AddWallActions({ onReady, compact }: { onReady: (d: Draft[]) => 
         <View testID="analyzing-indicator" style={[styles.busy, compact && styles.busyCompact]}>
           <Ionicons name="scan" size={compact ? 28 : 48} color={colors.onSurfaceInverse} />
           <Text testID="analyze-progress" style={styles.busyText}>
-            {progress && progress.n > 1 ? `ODCZYTUJĘ ${progress.i} Z ${progress.n}…` : "ANALIZA AI TRWA..."}
+            {progress && progress.n > 1 ? `ODCZYTUJĘ ${progress.i} Z ${progress.n}…` : "CZYTAM LICZBY Z RYSUNKU..."}
           </Text>
           {progress && progress.n > 1 && (
             <View style={styles.bar}>
