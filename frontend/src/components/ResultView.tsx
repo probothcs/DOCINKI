@@ -98,7 +98,9 @@ export function ResultView({
             {settings.topSpare > 0 ? ` (w tym ${settings.topSpare} zapasowa)` : ""}
           </Text>
         )}
-        <Text style={styles.paramText}>Luz: {fmt(settings.luz)} cm · Min. kawałek: {fmt(settings.minPiece)} cm</Text>
+        <Text style={styles.paramText}>
+          Luz: {fmt(settings.luz)} cm · Min. kawałek: {fmt(settings.minPiece)} cm · Reszta do {fmt(settings.gapMax)} cm = zaprawa
+        </Text>
       </View>
 
       <TopVariants result={result} onPick={onPickVariant} testID={`top-variant-${index}`} />

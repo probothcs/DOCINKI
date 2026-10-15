@@ -24,6 +24,7 @@ const toForm = (v: Settings) => ({
   tolerance100: toStr(v.tolerance100),
   luz: toStr(v.luz) || "0",
   minPiece: toStr(v.minPiece) || "0",
+  gapMax: toStr(v.gapMax) || "0",
   kimlagaHeight: toStr(v.kimlagaHeight),
   tables: [0, 1, 2].map((i) => (v.heightTables[i] ?? []).map((n) => fmt(n)).join("; ")),
 });
@@ -64,6 +65,7 @@ export default function SettingsScreen() {
       tolerance100: toNum(f.tolerance100),
       luz: toNum(f.luz),
       minPiece: toNum(f.minPiece),
+      gapMax: toNum(f.gapMax),
       firstCourseHalf: false,
       defaultKimlaga: kimlaga,
       defaultAllowBrick: allowBrick,
@@ -141,6 +143,14 @@ export default function SettingsScreen() {
           value={f.minPiece}
           onChangeText={set("minPiece")}
           hint="Mniejszy kawałek na końcu → dzielę ostatnie dwa na pół"
+        />
+        <Field
+          testID="settings-gap-max"
+          label="Reszta wypełniana zaprawą"
+          suffix="cm"
+          value={f.gapMax}
+          onChangeText={set("gapMax")}
+          hint="Do tylu cm na końcu warstwy nie tnę — przerwa między ostatnim a przedostatnim bloczkiem, od więcej robię docinkę"
         />
         <Field
           testID="settings-kimlaga-height"

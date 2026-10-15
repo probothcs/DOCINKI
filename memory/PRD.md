@@ -37,3 +37,4 @@ User (Polish, prefab clay-block wall builder) uploads a photo of the architect's
 ## Backlog
 - P1: Kartka dla pilarza (PDF/WhatsApp), odhaczanie warstw
 - P2: Zapotrzebowanie materiału, więcej tabel wysokości
+- (June 2026) Kimlaga nie liczy się do docinek ani do wiązania (1. warstwa nad kimlagą od pełnego). Reszta na końcu warstwy ≤ 3 cm (ustawienie "Reszta wypełniana zaprawą") = przerwa z zaprawą między ostatnim a przedostatnim bloczkiem, bez cięcia.

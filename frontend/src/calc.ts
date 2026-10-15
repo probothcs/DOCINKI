@@ -30,6 +30,7 @@ export type Settings = {
   tolerance100: number; // real length of 100 cm of blocks, e.g. 98
   luz: number; // slack subtracted from every cut, cm
   minPiece: number; // smallest acceptable piece, cm
+  gapMax: number; // rest at the wall end up to this is filled with mortar instead of cut, e.g. 3
   firstCourseHalf: boolean; // kept for saved data, always false
 };
 
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tolerance100: 100,
   luz: 1,
   minPiece: 10,
+  gapMax: 3,
   firstCourseHalf: false,
 };
 
@@ -205,8 +207,15 @@ function segmentPieces(
   const bounds = h !== null && e - s <= s0.blockLength + EPS ? [s, e] : [s, ...cuts, e];
   let lens = bounds.slice(1).map((v, i) => v - bounds[i]);
 
+  // a rest up to gapMax (e.g. 3 cm) at the wall end is not cut: gap filled with mortar
+  // between the last and second-to-last block
+  let gap = 0;
+  if (lens.length >= 2 && Math.abs(e - L) < EPS && lens[lens.length - 1] <= s0.gapMax + EPS) {
+    gap = lens.pop() as number;
+  }
+
   // Avoid tiny pieces only at the wall ends: merge with neighbour and split in half
-  if (lens.length >= 2 && Math.abs(e - L) < EPS && lens[lens.length - 1] < s0.minPiece) {
+  if (!gap && lens.length >= 2 && Math.abs(e - L) < EPS && lens[lens.length - 1] < s0.minPiece) {
     const t = lens[lens.length - 1] + lens[lens.length - 2];
     lens.splice(lens.length - 2, 2, t / 2, t / 2);
   }
@@ -217,7 +226,8 @@ function segmentPieces(
 
   const half = s0.blockLength / 2;
   let pos = s;
-  return lens.map((len) => {
+  return lens.map((len, idx) => {
+    if (gap && idx === lens.length - 1) pos += gap;
     const shortLen = len < b - EPS;
     // in the top course every cut is taken from the big block, cut to the top brick height
     const ph = h ?? (shortLen ? topCutH : null);
@@ -295,8 +305,9 @@ function build(w: WallInput, s: Settings, plan: HeightPlan, K0: number): Built {
   if (plan.t > 0) rows.push({ bottom: lay, top: w.height, brickH: plan.t, isTop: true });
 
   const courses: Course[] = rows.map((row, i) => {
-    // bottom course starts with a full block, every second course starts with a half (blockLength / 2, e.g. 25)
-    const startsHalf = i % 2 === 1;
+    // bond starts above the kimlaga: first block course from a full block, next from a half (e.g. 25)
+    const bondIdx = K0 > 0 ? i - 1 : i;
+    const startsHalf = !row.isKim && bondIdx % 2 === 1;
     const offset = startsHalf ? s.blockLength / 2 : 0;
     const rowCutH = row.isTop && topIsCut ? plan.t : null;
     const from = row.isKim ? K0 : row.isTop && !topIsCut ? plan.t : s.blockHeight;
@@ -315,8 +326,8 @@ function build(w: WallInput, s: Settings, plan: HeightPlan, K0: number): Built {
       : runs.map((r) =>
           segmentPieces(r.s, r.e, offset, b, s, r.h, from, row.isTop && !halfTop ? row.brickH : null, w.length, halfRow ? plan.t : s.blockHeight),
         );
-    // kimlaga course: every piece (full or cut) comes from the kimlaga block
-    if (row.isKim) segments.flat().forEach((p) => Object.assign(p, { from: K0, kim: true }));
+    // kimlaga course: drawn but never counted as cuts (pieces fitted on site)
+    if (row.isKim) segments.flat().forEach((p) => Object.assign(p, { from: K0, kim: true, isCut: false, cutLen: 0 }));
     const all = segments.flat();
     const brickLen = runs.filter((r) => r.h === null).reduce((n, r) => n + (r.e - r.s), 0);
     const bricks = brickTop && brickLen > 0 ? Math.round(brickLen / (s.topBrickLength + s.mortar)) + s.topSpare : 0;
